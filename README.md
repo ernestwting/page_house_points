@@ -108,6 +108,19 @@ Push to `main`. GitHub Pages (Settings → Pages → Source: `main` branch,
 `/ (root)`) serves it directly — no Actions workflow needed for a plain
 static site like this.
 
+**Custom domain**: the repo's `CNAME` file points this site at
+`pagehouse.site`. That file alone isn't enough — the domain's own DNS
+(managed wherever it was bought, e.g. Namecheap) needs to point at
+GitHub Pages too: four `A` records on `@` to
+`185.199.108.153`/`.109.153`/`.110.153`/`.111.153`, plus (optional but
+recommended) a `CNAME` record on `www` to `ernestwting.github.io`. See
+[GitHub's own custom-domain docs](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)
+for the full walkthrough. Once DNS resolves, Settings → Pages shows a
+green check next to the custom domain and an "Enforce HTTPS" checkbox
+becomes available — turn that on once it appears (GitHub needs the DNS
+to be live first to issue the certificate, so it may not show up
+immediately).
+
 **Whenever `style.css` or `app.js` change, bump the `?v=N` query string
 on their `<link>`/`<script>` tags in `index.html`.** Browsers cache these
 files aggressively by URL; without a version bump, a returning visitor
