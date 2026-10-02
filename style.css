@@ -65,10 +65,11 @@ button:focus-visible,.btn:focus-visible{outline:2px solid var(--gold);outline-of
 .board{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow-x:auto}
 table{border-collapse:collapse;width:100%;min-width:880px;font-variant-numeric:tabular-nums}
 th{font-size:10.5px;color:var(--dim);font-weight:700;text-align:right;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--panel)}
-th:nth-child(-n+3){text-align:left}
+th:nth-child(-n+4){text-align:left}
 th abbr{text-decoration:underline dotted;cursor:help}
 td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-td:nth-child(-n+3){text-align:left}
+td:nth-child(-n+4){text-align:left}
+.role{color:var(--dim);font-size:13px;font-style:italic}
 tr.row{cursor:pointer}
 tr.row:hover td{background:var(--glow)}
 tr.row:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
@@ -96,7 +97,10 @@ ol.codex{margin:0;padding-left:20px;font-size:12.5px;color:var(--dim)}
 ol.codex li{margin-bottom:8px}
 ol.codex strong{color:var(--ink)}
 
-.activity-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.6rem}
+.activity-list{
+  list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.6rem;
+  max-height:280px;overflow-y:auto;
+}
 .activity-item{border:1px solid var(--line);border-radius:4px;padding:0.55rem 0.7rem;font-size:0.83rem;color:var(--ink)}
 .activity-item .activity-time{display:block;color:var(--dim);font-size:0.72rem;margin-top:0.15rem}
 

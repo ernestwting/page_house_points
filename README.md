@@ -41,6 +41,18 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   can type a custom one. **"Reset boosts"** zeroes every category except
   Base and Shot O'Clock's multiplier (back to 1.0×) for one person or
   everyone — the manual equivalent of an event like Happy Hour ending.
+- **Frosh Role** — an optional free-text field set when a person is
+  added (shown as its own column, next to Name). Purely descriptive;
+  nothing in the scoring reads it.
+- **Chaos roll**: every 5 minutes, a Google Apps Script time-driven
+  trigger (`chaosRoll()` in `Code.gs` — see setup below) adds a fresh
+  random integer in [-100, 100] to *every* tracked person's Whose House
+  value, independent of whether anyone has the site open. This runs
+  server-side on purpose, not via a `setInterval` in the browser — a
+  client-side timer would only fire for whoever happened to have a tab
+  open (and fire *once per open tab*, compounding if more than one
+  person had the board up), which isn't a fair "everyone gets the same
+  chaos" mechanic.
 
 ## One-time backend setup
 
@@ -72,12 +84,23 @@ it again after that:
    `https://script.google.com/macros/s/AKfycb.../exec`).
 8. Paste that as the value of `STORE_URL` near the top of `app.js`,
    commit, and push. The board goes live on the next Pages deploy.
+9. **To turn on the 5-minute chaos roll**: back in the Apps Script
+   editor, pick `setupChaosTrigger` from the function dropdown at the
+   top (next to the Run/Debug buttons) and click **Run**. It'll ask for
+   a separate authorization the first time (triggers need their own
+   consent) — same "unsafe" warning as step 6, same reason, click through
+   it the same way. That's it; it keeps running on Google's servers from
+   then on, with nothing else to maintain. To stop it later, run
+   `removeChaosTrigger` the same way.
 
 If the script or sheet ever needs editing later, the same Apps Script
 editor is reachable from **Extensions → Apps Script** on that sheet —
 redeploy (**Deploy → Manage deployments → edit → New version**) for code
 changes to actually take effect, since Apps Script Web Apps serve
 whichever version was last deployed, not always the latest saved code.
+(The chaos trigger isn't part of that deployment, though — it's a
+separate project-level trigger, so `setupChaosTrigger`/`removeChaosTrigger`
+only ever need running directly from the editor, never redeployed.)
 
 ## Deploying
 

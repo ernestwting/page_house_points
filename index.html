@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -24,7 +24,7 @@
 
 <div class="wrap">
   <header>
-    <h1>Page House Points<small>&ldquo;Spe labor levis, et spe vinum gravis&rdquo; &mdash; make the work be light and the drinks be heavy</small></h1>
+    <h1>Page House Points<small>&ldquo;Spe labor levis, et spe vinum gravis&rdquo;</small></h1>
     <div class="clock">
       <div class="t" id="sync-status">Loading&hellip;</div>
       <div class="l">shared board &middot; synced automatically</div>
@@ -59,7 +59,7 @@
       </div>
       <table id="leaderboard" hidden>
         <thead><tr>
-          <th>#</th><th>Participant</th><th>Tier</th>
+          <th>#</th><th>Name</th><th><abbr title="Frosh Role, set when a person is added">Role</abbr></th><th>Tier</th>
           <th><abbr title="Starting score each Pageboy is assigned, 1&ndash;10">Base</abbr></th>
           <th><abbr title="Multiplier applied to (Base + Beer Room Boost + 15 for 15)">Shot O'Clock</abbr></th>
           <th><abbr title="Flat bonus points">Beer Room Boost</abbr></th>
@@ -150,6 +150,7 @@
             <summary>People</summary>
             <form id="add-person-form" class="stack-form">
               <input id="person-name" type="text" placeholder="Name to add" maxlength="60" required>
+              <input id="person-role" type="text" placeholder="Frosh Role (optional)" maxlength="60">
               <button type="submit" class="btn btn-primary">Add person</button>
             </form>
             <form id="remove-person-form" class="stack-form">
@@ -163,6 +164,6 @@
   </main>
 </div>
 
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

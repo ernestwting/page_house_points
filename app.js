@@ -170,6 +170,7 @@
       tr.innerHTML =
         '<td class="rank">' + p.rank + "</td>" +
         '<td class="name">' + escapeHtml(p.name) + "</td>" +
+        '<td class="role">' + escapeHtml(p.role || "") + "</td>" +
         '<td><span class="tier t-' + p.tierSym + '">' + p.tierText + "</span></td>" +
         "<td>" + fmt(p.base) + "</td>" +
         "<td>×" + fmt(p.shotOClock) + "</td>" +
@@ -183,8 +184,9 @@
       var dt = document.createElement("tr");
       dt.className = "detail";
       dt.hidden = openDetailId !== p.id;
-      dt.innerHTML = '<td colspan="11"><div class="detail-grid">' +
+      dt.innerHTML = '<td colspan="12"><div class="detail-grid">' +
         '<div><b>Rank</b>#' + p.rank + " of " + people.length + "</div>" +
+        '<div><b>Role</b>' + escapeHtml(p.role || "—") + "</div>" +
         '<div><b>Tier</b>' + p.tierText + "</div>" +
         '<div><b>Base</b>' + fmt(p.base) + "</div>" +
         '<div><b>Shot O\'Clock</b>×' + fmt(p.shotOClock) + "</div>" +
@@ -271,9 +273,9 @@
     return true;
   }
 
-  function newPerson(name) {
+  function newPerson(name, role) {
     return {
-      id: uid(), name: name,
+      id: uid(), name: name, role: role || "",
       base: 5, shotOClock: 1, beerRoomBoost: 0, fifteenForFifteen: 0,
       polarBear: 0, whoseHouse: 0, happyHour: 0,
     };
@@ -299,9 +301,9 @@
     logActivity("Boosts reset for " + who);
   }
 
-  function addPerson(name) {
-    state.people.push(newPerson(name));
-    logActivity(name + " joined the board");
+  function addPerson(name, role) {
+    state.people.push(newPerson(name, role));
+    logActivity(name + (role ? " (" + role + ")" : "") + " joined the board");
   }
 
   function removePerson(personId) {
@@ -377,8 +379,9 @@
       ev.preventDefault();
       if (!requireAdmin()) return;
       var name = byId("person-name").value.trim();
+      var role = byId("person-role").value.trim();
       if (!name) return;
-      addPerson(name);
+      addPerson(name, role);
       ev.target.reset();
       renderAll();
       withSavingUi(saveState(), ev.target);
@@ -413,15 +416,17 @@
   // ---------- decorative bouncing excomm photos ----------
 
   function wireFloaters() {
+    var colors = ["var(--gold)", "var(--pink)", "var(--cyan)", "var(--violet)", "var(--up)"];
     var faces = Array.prototype.map.call(document.querySelectorAll(".floater"), function (el, i) {
+      var hue = Math.floor(Math.random() * 360);
+      el.style.filter = "hue-rotate(" + hue + "deg) saturate(1.6)";
       return {
-        el: el,
+        el: el, hue: hue,
         x: Math.random() * Math.max(1, innerWidth - 120), y: Math.random() * Math.max(1, innerHeight - 120),
         vx: (i % 2 ? -1 : 1) * (1.4 + i * 0.35), vy: (i % 2 ? 1 : -1) * (1.1 + i * 0.3),
       };
     });
     if (!faces.length) return;
-    var colors = ["var(--gold)", "var(--pink)", "var(--cyan)", "var(--violet)", "var(--up)"];
     var slow = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1;
     var ci = 0, last = performance.now();
     function step(t) {
@@ -436,8 +441,13 @@
         if (f.y <= 0) { f.y = 0; f.vy = Math.abs(f.vy); hit = true; }
         else if (f.y >= h) { f.y = h; f.vy = -Math.abs(f.vy); hit = true; }
         if (hit) {
+          // DVD-logo-style: pick a new color on every bounce and hold it
+          // (not a slow continuous drift) — applied as a filter on the
+          // photo itself, not just its border, so the whole image tints.
           ci = (ci + 1) % colors.length;
           el.style.borderColor = colors[ci];
+          f.hue = (f.hue + 55 + Math.floor(Math.random() * 40)) % 360;
+          el.style.filter = "hue-rotate(" + f.hue + "deg) saturate(1.6)";
           el.classList.remove("corner"); void el.offsetWidth; el.classList.add("corner");
         }
         el.style.transform = "translate(" + f.x + "px," + f.y + "px)";
