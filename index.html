@@ -64,7 +64,7 @@
           <th><abbr title="Multiplier applied to (Base + Beer Room Boost + 15 for 15)">Shot O'Clock</abbr></th>
           <th><abbr title="Flat bonus points">Beer Room Boost</abbr></th>
           <th><abbr title="Flat bonus points">15 for 15</abbr></th>
-          <th><abbr title="Flat penalty, subtracted">Polar Bear</abbr></th>
+          <th><abbr title="Flat adjustment, usually negative as a penalty">Polar Bear</abbr></th>
           <th><abbr title="Flat adjustment, can be positive or negative">Whose House</abbr></th>
           <th><abbr title="Flat adjustment, can be positive or negative">Happy Hour</abbr></th>
           <th>Net power</th>
@@ -77,7 +77,7 @@
       <div class="card">
         <h2>Scoring codex</h2>
         <ol class="codex">
-          <li><strong>Net power</strong> = ((Base + Beer Room Boost + 15 for 15) &times; Shot O'Clock) &minus; Polar Bear + Whose House + Happy Hour.</li>
+          <li><strong>Net power</strong> = ((Base + Beer Room Boost + 15 for 15) &times; Shot O'Clock) + Polar Bear + Whose House + Happy Hour. Polar Bear, Whose House, and Happy Hour can each be positive or negative &mdash; Polar Bear is meant as a penalty, so its preset applies a negative amount by default.</li>
           <li><strong>Tier</strong> is assigned automatically by rank: top 10% is &Omega; Apex, next 20% &Sigma; Prime, next 30% &Delta; Flux, next 25% &lambda; Drift, bottom 15% &empty; Null.</li>
           <li>Every category below is admin-adjustable per person &mdash; click a boost preset, pick who it applies to, and it adds (or, with a negative amount, subtracts) from that category.</li>
           <li>Click any leaderboard row for that Pageboy's full formula breakdown.</li>
@@ -130,7 +130,7 @@
               <button class="btn btn-small preset-btn" type="button" data-cat="shotOClock" data-amt="0.25">+0.25&times; Shot O'Clock</button>
               <button class="btn btn-small preset-btn" type="button" data-cat="beerRoomBoost" data-amt="2">+2 Beer Room</button>
               <button class="btn btn-small preset-btn" type="button" data-cat="fifteenForFifteen" data-amt="1.5">+1.5 15-for-15</button>
-              <button class="btn btn-small preset-btn" type="button" data-cat="polarBear" data-amt="1">+1 Polar Bear</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="polarBear" data-amt="-1">&minus;1 Polar Bear</button>
               <button class="btn btn-small preset-btn" type="button" data-cat="whoseHouse" data-amt="3">+3 Whose House</button>
               <button class="btn btn-small preset-btn" type="button" data-cat="happyHour" data-amt="2">+2 Happy Hour</button>
             </div>
@@ -163,6 +163,6 @@
   </main>
 </div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

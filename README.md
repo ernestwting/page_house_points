@@ -24,9 +24,15 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   with.
 - **Each Pageboy has seven scoring categories**, not just one points
   total: Base, Shot O'Clock (a multiplier), Beer Room Boost, 15 for 15,
-  Polar Bear (a penalty), Whose House, and Happy Hour. Net power is:
-  `((Base + Beer Room Boost + 15 for 15) × Shot O'Clock) − Polar Bear +
-  Whose House + Happy Hour`. **Tier** (Ω Apex / Σ Prime / Δ Flux / λ
+  Polar Bear, Whose House, and Happy Hour. Net power is:
+  `((Base + Beer Room Boost + 15 for 15) × Shot O'Clock) + Polar Bear +
+  Whose House + Happy Hour`. Polar Bear/Whose House/Happy Hour are signed
+  (can be positive or negative) like a scoreboard swing — Polar Bear is
+  meant as a penalty, so its preset button applies a *negative* amount by
+  default, rather than being a magnitude that's always force-subtracted
+  (an earlier version did that, which meant a "+1 Polar Bear" button
+  always made net power go *down* — confusing, since the button read
+  positive but did the opposite). **Tier** (Ω Apex / Σ Prime / Δ Flux / λ
   Drift / ∅ Null) is assigned automatically from net-power rank, not set
   by hand.
 - **"Apply a boost"** adds (or, with a negative amount, subtracts) a

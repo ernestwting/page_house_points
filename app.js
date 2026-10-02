@@ -46,7 +46,13 @@
   // ---------- scoring ----------
 
   function netPower(p) {
-    return ((p.base + p.beerRoomBoost + p.fifteenForFifteen) * p.shotOClock) - p.polarBear + p.whoseHouse + p.happyHour;
+    // Polar Bear is a signed swing like Whose House/Happy Hour (typically
+    // negative, since it's meant as a penalty) rather than a magnitude
+    // that gets force-subtracted — a magnitude model meant a "+1 Polar
+    // Bear" boost (which correctly added 1 to the stored value) always
+    // made net power go *down*, which reads as exactly backwards from
+    // the button that caused it.
+    return ((p.base + p.beerRoomBoost + p.fifteenForFifteen) * p.shotOClock) + p.polarBear + p.whoseHouse + p.happyHour;
   }
 
   function tierFor(fraction) {
@@ -169,7 +175,7 @@
         "<td>×" + fmt(p.shotOClock) + "</td>" +
         '<td class="' + (p.beerRoomBoost >= 0 ? "pos" : "neg") + '">' + signed(p.beerRoomBoost) + "</td>" +
         '<td class="' + (p.fifteenForFifteen >= 0 ? "pos" : "neg") + '">' + signed(p.fifteenForFifteen) + "</td>" +
-        '<td class="neg">−' + fmt(Math.abs(p.polarBear)) + "</td>" +
+        '<td class="' + (p.polarBear >= 0 ? "pos" : "neg") + '">' + signed(p.polarBear) + "</td>" +
         '<td class="' + (p.whoseHouse >= 0 ? "pos" : "neg") + '">' + signed(p.whoseHouse) + "</td>" +
         '<td class="' + (p.happyHour >= 0 ? "pos" : "neg") + '">' + signed(p.happyHour) + "</td>" +
         '<td class="final">' + fmt(p.net) + arrow + "</td>";
@@ -184,7 +190,8 @@
         '<div><b>Shot O\'Clock</b>×' + fmt(p.shotOClock) + "</div>" +
         "</div>" +
         '<div class="formula">((' + fmt(p.base) + " + " + fmt(p.beerRoomBoost) + " + " + fmt(p.fifteenForFifteen) +
-        ") × " + fmt(p.shotOClock) + ") − " + fmt(Math.abs(p.polarBear)) + " " +
+        ") × " + fmt(p.shotOClock) + ") " +
+        (p.polarBear >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.polarBear)) + " " +
         (p.whoseHouse >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.whoseHouse)) + " " +
         (p.happyHour >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.happyHour)) +
         " = " + fmt(p.net) + "</div></td>";
