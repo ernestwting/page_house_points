@@ -3,14 +3,20 @@
 
   // A Google Apps Script Web App (bound to a Google Sheet) is this static
   // site's entire "backend" — see apps-script/Code.gs and README.md for
-  // what it does and how to deploy it. Empty until that one-time, by-hand
-  // deployment is done and its /exec URL is pasted in here.
+  // what it does and how to deploy it.
   var STORE_URL = "https://script.google.com/macros/s/AKfycbwJwiWBKj2s3ls2HDN6cBJpEzhRaQ3oPi08v5MTSp7d_wOmrofwVOZGHkbQ9XXNaIkTXw/exec";
   var ADMIN_CODE = "whosehouse";
   var POLL_MS = 20000;
 
-  var state = { people: [], modifiers: [], activityLog: [], schemaVersion: 1 };
-  var previousRanks = {}; // personId -> rank, client-side only, for the ▲▼ indicator
+  var CATEGORY_LABELS = {
+    base: "Base", shotOClock: "Shot O'Clock", beerRoomBoost: "Beer Room Boost",
+    fifteenForFifteen: "15 for 15", polarBear: "Polar Bear", whoseHouse: "Whose House", happyHour: "Happy Hour",
+  };
+  var RESETTABLE = ["beerRoomBoost", "fifteenForFifteen", "polarBear", "whoseHouse", "happyHour"];
+
+  var state = { people: [], activityLog: [], schemaVersion: 2 };
+  var previousRank = {}; // personId -> rank, client-side only, for the ▲▼ indicator
+  var openDetailId = null;
   var isAdmin = sessionStorage.getItem("phpAdmin") === "1";
 
   // ---------- small utilities ----------
@@ -19,62 +25,58 @@
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
   }
-
-  function round2(n) {
-    return Math.round((n + Number.EPSILON) * 100) / 100;
-  }
-
-  function fmtPoints(n) {
+  function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+  function fmt(n, d) {
+    d = d == null ? 2 : d;
     var r = round2(n || 0);
-    return Number.isInteger(r) ? String(r) : r.toFixed(2);
+    return Number.isInteger(r) && d !== 3 ? String(r) : r.toFixed(d);
   }
-
-  function fmtClock(d) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  function signed(n, d) {
+    var r = round2(n || 0);
+    return (r >= 0 ? "+" : "") + fmt(r, d);
   }
-
+  function fmtClock(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
   function escapeHtml(s) {
     var div = document.createElement("div");
     div.textContent = s == null ? "" : String(s);
     return div.innerHTML;
   }
-
   function byId(id) { return document.getElementById(id); }
 
-  // ---------- state helpers ----------
+  // ---------- scoring ----------
 
-  function activeModifiers(now) {
-    now = now || Date.now();
-    return (state.modifiers || []).filter(function (m) {
-      return !m.expiresAt || new Date(m.expiresAt).getTime() > now;
+  function netPower(p) {
+    return ((p.base + p.beerRoomBoost + p.fifteenForFifteen) * p.shotOClock) - p.polarBear + p.whoseHouse + p.happyHour;
+  }
+
+  function tierFor(fraction) {
+    if (fraction < 0.10) return "Ω Apex";
+    if (fraction < 0.30) return "Σ Prime";
+    if (fraction < 0.60) return "Δ Flux";
+    if (fraction < 0.85) return "λ Drift";
+    return "∅ Null";
+  }
+
+  function rankedPeople() {
+    var people = (state.people || []).map(function (p) {
+      return Object.assign({}, p, { net: netPower(p) });
     });
-  }
-
-  function multiplierFor(personId, now) {
-    var mods = activeModifiers(now);
-    var mult = 1;
-    mods.forEach(function (m) {
-      if (m.scope === "all" || m.scope === personId) mult *= Number(m.multiplier) || 1;
+    people.sort(function (a, b) { return b.net - a.net; });
+    var total = people.length;
+    people.forEach(function (p, i) {
+      p.rank = i + 1;
+      p.tierText = tierFor(total > 0 ? i / total : 0);
+      p.tierSym = p.tierText.charAt(0);
     });
-    return mult;
+    return people;
   }
 
-  function personById(id) {
-    return (state.people || []).find(function (p) { return p.id === id; });
-  }
+  function personById(id) { return (state.people || []).find(function (p) { return p.id === id; }); }
 
-  function pruneExpiredModifiers() {
-    var now = Date.now();
-    state.modifiers = activeModifiers(now);
-  }
-
-  function logActivity(entry) {
-    entry.id = uid();
-    entry.timestamp = new Date().toISOString();
+  function logActivity(text) {
     state.activityLog = state.activityLog || [];
-    state.activityLog.unshift(entry);
-    // Keep the store from growing forever — this is a fun ticker, not an audit log.
-    state.activityLog = state.activityLog.slice(0, 60);
+    state.activityLog.unshift({ id: uid(), timestamp: new Date().toISOString(), text: text });
+    state.activityLog = state.activityLog.slice(0, 60); // ticker/feed, not an audit log
   }
 
   // ---------- network ----------
@@ -86,24 +88,19 @@
         return res.json();
       })
       .then(function (data) {
-        state = Object.assign({ people: [], modifiers: [], activityLog: [], schemaVersion: 1 }, data);
+        state = Object.assign({ people: [], activityLog: [], schemaVersion: 2 }, data);
         state.people = state.people || [];
-        state.modifiers = state.modifiers || [];
         state.activityLog = state.activityLog || [];
       });
   }
 
   function saveState() {
-    pruneExpiredModifiers();
     // Content-Type is deliberately left as the fetch default (text/plain)
     // rather than application/json: that keeps this a CORS-simple request
     // (no preflight), since Apps Script Web Apps can't answer a real
     // OPTIONS preflight. Code.gs's doPost() parses the body as JSON
     // regardless of the declared content type.
-    return fetch(STORE_URL, {
-      method: "POST",
-      body: JSON.stringify(state),
-    })
+    return fetch(STORE_URL, { method: "POST", body: JSON.stringify(state) })
       .then(function (res) {
         if (!res.ok) throw new Error("POST failed: " + res.status);
         return res.json();
@@ -118,10 +115,10 @@
     var prevText = btn ? btn.textContent : null;
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
     return promise
-      .then(function () { setSyncStatus("Synced at " + fmtClock(new Date())); })
+      .then(function () { byId("sync-status").textContent = "Synced " + fmtClock(new Date()); })
       .catch(function (err) {
         console.error(err);
-        setSyncStatus("Couldn't reach the data store — try again.", true);
+        byId("sync-status").textContent = "Couldn't save — try again";
         alert("That didn't save — the shared data store didn't respond. Nothing changed on the board yet; try again.");
       })
       .finally(function () {
@@ -131,126 +128,97 @@
 
   // ---------- rendering ----------
 
-  function setSyncStatus(text, isError) {
-    var el = byId("sync-status");
-    el.textContent = text;
-    el.style.color = isError ? "var(--accent-red)" : "";
-  }
-
   function renderLeaderboard() {
     var body = byId("leaderboard-body");
     var table = byId("leaderboard");
     var empty = byId("leaderboard-empty");
+    var people = rankedPeople();
 
-    var people = (state.people || []).slice().sort(function (a, b) { return b.points - a.points; });
+    byId("people-count").textContent = people.length
+      ? people.length + " Pageboy" + (people.length === 1 ? "" : "s") + " tracked"
+      : "No Pageboys tracked yet";
 
     if (!people.length) {
       table.hidden = true;
       empty.hidden = false;
       body.innerHTML = "";
-      return;
+      return people;
     }
     table.hidden = false;
     empty.hidden = true;
 
-    var newRanks = {};
-    body.innerHTML = people.map(function (p, i) {
-      var rank = i + 1;
-      newRanks[p.id] = rank;
-      var prevRank = previousRanks[p.id];
-      var deltaHtml = "";
-      if (prevRank != null && prevRank !== rank) {
-        var moved = prevRank - rank; // positive = moved up
-        deltaHtml = '<span class="point-delta ' + (moved > 0 ? "up" : "down") + '">' +
-          (moved > 0 ? "▲" : "▼") + Math.abs(moved) + "</span>";
+    var newRank = {};
+    body.innerHTML = "";
+    people.forEach(function (p) {
+      newRank[p.id] = p.rank;
+      var prev = previousRank[p.id];
+      var arrow = "";
+      if (prev != null && prev !== p.rank) {
+        var moved = prev - p.rank;
+        arrow = '<span class="arrow ' + (moved > 0 ? "pos" : "neg") + '">' + (moved > 0 ? "▲" : "▼") + Math.abs(moved) + "</span>";
       }
-      var rankClass = rank <= 3 ? "rank-" + rank : "";
-      return (
-        '<tr class="' + rankClass + '">' +
-        '<td class="col-rank">' + rank + "</td>" +
-        '<td class="person-name">' + escapeHtml(p.name) + deltaHtml + "</td>" +
-        '<td class="col-points">' + fmtPoints(p.points) + "</td>" +
-        "</tr>"
-      );
-    }).join("");
-    previousRanks = newRanks;
+      var tr = document.createElement("tr");
+      tr.className = "row";
+      tr.tabIndex = 0;
+      tr.dataset.id = p.id;
+      tr.innerHTML =
+        '<td class="rank">' + p.rank + "</td>" +
+        '<td class="name">' + escapeHtml(p.name) + "</td>" +
+        '<td><span class="tier t-' + p.tierSym + '">' + p.tierText + "</span></td>" +
+        "<td>" + fmt(p.base) + "</td>" +
+        "<td>×" + fmt(p.shotOClock) + "</td>" +
+        '<td class="' + (p.beerRoomBoost >= 0 ? "pos" : "neg") + '">' + signed(p.beerRoomBoost) + "</td>" +
+        '<td class="' + (p.fifteenForFifteen >= 0 ? "pos" : "neg") + '">' + signed(p.fifteenForFifteen) + "</td>" +
+        '<td class="neg">−' + fmt(Math.abs(p.polarBear)) + "</td>" +
+        '<td class="' + (p.whoseHouse >= 0 ? "pos" : "neg") + '">' + signed(p.whoseHouse) + "</td>" +
+        '<td class="' + (p.happyHour >= 0 ? "pos" : "neg") + '">' + signed(p.happyHour) + "</td>" +
+        '<td class="final">' + fmt(p.net) + arrow + "</td>";
+
+      var dt = document.createElement("tr");
+      dt.className = "detail";
+      dt.hidden = openDetailId !== p.id;
+      dt.innerHTML = '<td colspan="11"><div class="detail-grid">' +
+        '<div><b>Rank</b>#' + p.rank + " of " + people.length + "</div>" +
+        '<div><b>Tier</b>' + p.tierText + "</div>" +
+        '<div><b>Base</b>' + fmt(p.base) + "</div>" +
+        '<div><b>Shot O\'Clock</b>×' + fmt(p.shotOClock) + "</div>" +
+        "</div>" +
+        '<div class="formula">((' + fmt(p.base) + " + " + fmt(p.beerRoomBoost) + " + " + fmt(p.fifteenForFifteen) +
+        ") × " + fmt(p.shotOClock) + ") − " + fmt(Math.abs(p.polarBear)) + " " +
+        (p.whoseHouse >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.whoseHouse)) + " " +
+        (p.happyHour >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.happyHour)) +
+        " = " + fmt(p.net) + "</div></td>";
+
+      var toggle = function () {
+        openDetailId = openDetailId === p.id ? null : p.id;
+        renderLeaderboard();
+      };
+      tr.addEventListener("click", toggle);
+      tr.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      body.appendChild(tr);
+      body.appendChild(dt);
+    });
+    previousRank = newRank;
+    return people;
   }
 
-  function renderBoosts() {
-    var list = byId("boosts-list");
-    var empty = byId("boosts-empty");
-    var ticker = byId("boost-ticker");
-    var now = Date.now();
-    var mods = activeModifiers(now);
-
-    if (!mods.length) {
-      list.innerHTML = "";
-      empty.hidden = false;
-      ticker.hidden = true;
+  function renderTicker(people) {
+    if (!people.length) {
+      byId("ticker-track").textContent = "Add some Pageboys to get the board started — spe labor levis, et spe vinum gravis.";
       return;
     }
-    empty.hidden = true;
-
-    list.innerHTML = mods.map(function (m) {
-      var scopeLabel = m.scope === "all" ? "All Pageboys" : (function () {
-        var p = personById(m.scope);
-        return p ? p.name : "(removed person)";
-      })();
-      var countdown = m.expiresAt
-        ? formatCountdown(new Date(m.expiresAt).getTime() - now)
-        : "No expiry";
-      var endBtn = isAdmin
-        ? '<button class="btn btn-small btn-ghost end-boost-btn" data-id="' + m.id + '" type="button">End</button>'
-        : "";
-      return (
-        '<li class="boost-item" data-expires="' + (m.expiresAt || "") + '">' +
-        "<span>" +
-        '<span class="boost-name">' + escapeHtml(m.name) + "</span><br>" +
-        '<span class="boost-meta">×' + m.multiplier + " · " + escapeHtml(scopeLabel) + "</span>" +
-        "</span>" +
-        '<span class="boost-countdown" data-countdown>' + countdown + "</span>" +
-        endBtn +
-        "</li>"
-      );
-    }).join("");
-
-    Array.prototype.forEach.call(list.querySelectorAll(".end-boost-btn"), function (btn) {
-      btn.addEventListener("click", function () { endBoost(btn.getAttribute("data-id")); });
-    });
-
-    // Ticker: active boosts scrolling across the header, duplicated once
-    // so the -50% translateX CSS animation loops without a visible seam.
-    var tickerText = mods.map(function (m) {
-      return "🍺 " + m.name + " ×" + m.multiplier + " active";
-    }).join("  •  ");
-    byId("ticker-track").innerHTML = escapeHtml(tickerText) + "&nbsp;&nbsp;•&nbsp;&nbsp;" + escapeHtml(tickerText);
-    ticker.hidden = false;
-  }
-
-  function formatCountdown(ms) {
-    if (ms <= 0) return "Ending…";
-    var totalSec = Math.floor(ms / 1000);
-    var h = Math.floor(totalSec / 3600);
-    var m = Math.floor((totalSec % 3600) / 60);
-    var s = totalSec % 60;
-    var pad = function (n) { return String(n).padStart(2, "0"); };
-    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
-  }
-
-  function tickCountdowns() {
-    // Cheap per-second visual tick between full re-renders/polls.
-    var now = Date.now();
-    var any = false;
-    Array.prototype.forEach.call(document.querySelectorAll("#boosts-list li[data-expires]"), function (li) {
-      var exp = li.getAttribute("data-expires");
-      if (!exp) return;
-      any = true;
-      var remaining = new Date(exp).getTime() - now;
-      li.querySelector("[data-countdown]").textContent = formatCountdown(remaining);
-    });
-    if (any && activeModifiers(now).length !== document.querySelectorAll("#boosts-list li").length) {
-      renderBoosts(); // something expired since the last full render
-    }
+    var top = people[0];
+    var latest = (state.activityLog || [])[0];
+    var bits = [
+      "🏆 " + top.name + " leads as " + top.tierText,
+      people.length + " Pageboy" + (people.length === 1 ? "" : "s") + " tracked",
+      "Spe labor levis, et spe vinum gravis",
+    ];
+    if (latest) bits.push(latest.text);
+    byId("ticker-track").textContent = bits.join("  •  ");
   }
 
   function renderActivity() {
@@ -264,11 +232,8 @@
     }
     empty.hidden = true;
     list.innerHTML = entries.map(function (e) {
-      return (
-        '<li class="activity-item">' + escapeHtml(e.text) +
-        '<span class="activity-time">' + new Date(e.timestamp).toLocaleString() + "</span>" +
-        "</li>"
-      );
+      return '<li class="activity-item">' + escapeHtml(e.text) +
+        '<span class="activity-time">' + new Date(e.timestamp).toLocaleString() + "</span></li>";
     }).join("");
   }
 
@@ -278,29 +243,16 @@
       return '<option value="' + p.id + '">' + escapeHtml(p.name) + "</option>";
     }).join("");
 
-    byId("add-points-person").innerHTML = personOptions || '<option value="">No people yet</option>';
-    byId("remove-points-person").innerHTML = personOptions || '<option value="">No people yet</option>';
+    byId("boost-target").innerHTML = (people.length ? '<option value="everyone">Everyone</option>' : "") +
+      (personOptions || '<option value="">No people yet</option>');
+    byId("reset-target").innerHTML = (people.length ? '<option value="everyone">Everyone</option>' : "") +
+      (personOptions || '<option value="">No people yet</option>');
     byId("remove-person-select").innerHTML = personOptions || '<option value="">No people yet</option>';
-    byId("boost-scope").innerHTML = '<option value="all">All Pageboys</option>' + personOptions;
-
-    updateAddPointsPreview();
-  }
-
-  function updateAddPointsPreview() {
-    var personId = byId("add-points-person").value;
-    var amount = parseFloat(byId("add-points-amount").value);
-    var preview = byId("add-points-preview");
-    if (!personId || isNaN(amount)) { preview.textContent = ""; return; }
-    var mult = multiplierFor(personId, Date.now());
-    var final = round2(amount * mult);
-    preview.textContent = mult !== 1
-      ? amount + " pts × " + mult + " active boost = " + final + " pts"
-      : final + " pts (no active boost)";
   }
 
   function renderAll() {
-    renderLeaderboard();
-    renderBoosts();
+    var people = renderLeaderboard();
+    renderTicker(people);
     renderActivity();
     renderAdminSelects();
   }
@@ -312,65 +264,45 @@
     return true;
   }
 
-  function addPoints(personId, amount, reason) {
-    var person = personById(personId);
-    if (!person) return;
-    var mult = multiplierFor(personId, Date.now());
-    var finalAmount = round2(amount * mult);
-    person.points = round2((person.points || 0) + finalAmount);
-    var text = person.name + " gained " + finalAmount + " pts" +
-      (mult !== 1 ? " (" + amount + " × " + mult + ")" : "") +
-      (reason ? " — " + reason : "");
-    logActivity({ type: "add", text: text });
+  function newPerson(name) {
+    return {
+      id: uid(), name: name,
+      base: 5, shotOClock: 1, beerRoomBoost: 0, fifteenForFifteen: 0,
+      polarBear: 0, whoseHouse: 0, happyHour: 0,
+    };
   }
 
-  function removePoints(personId, amount, reason) {
-    var person = personById(personId);
-    if (!person) return;
-    person.points = round2((person.points || 0) - amount);
-    var text = person.name + " lost " + amount + " pts" + (reason ? " — " + reason : "");
-    logActivity({ type: "remove", text: text });
+  function applyBoost(targetId, category, amount, reason) {
+    var targets = targetId === "everyone" ? state.people : [personById(targetId)].filter(Boolean);
+    targets.forEach(function (p) { p[category] = round2((p[category] || 0) + amount); });
+    var label = CATEGORY_LABELS[category];
+    var who = targetId === "everyone" ? "everyone" : (personById(targetId) || {}).name || "someone";
+    logActivity(
+      label + " " + signed(amount) + " for " + who + (reason ? " — " + reason : "")
+    );
+  }
+
+  function resetBoosts(targetId) {
+    var targets = targetId === "everyone" ? state.people : [personById(targetId)].filter(Boolean);
+    targets.forEach(function (p) {
+      RESETTABLE.forEach(function (cat) { p[cat] = 0; });
+      p.shotOClock = 1;
+    });
+    var who = targetId === "everyone" ? "everyone" : (personById(targetId) || {}).name || "someone";
+    logActivity("Boosts reset for " + who);
   }
 
   function addPerson(name) {
-    var id = uid();
-    state.people.push({ id: id, name: name, points: 0 });
-    logActivity({ type: "addPerson", text: name + " joined the board" });
+    state.people.push(newPerson(name));
+    logActivity(name + " joined the board");
   }
 
   function removePerson(personId) {
     var person = personById(personId);
     if (!person) return;
     state.people = state.people.filter(function (p) { return p.id !== personId; });
-    state.modifiers = (state.modifiers || []).filter(function (m) { return m.scope !== personId; });
-    logActivity({ type: "removePerson", text: person.name + " was removed from the board" });
-  }
-
-  function addBoost(name, multiplier, scope, durationMin) {
-    var now = new Date();
-    var expiresAt = durationMin > 0
-      ? new Date(now.getTime() + durationMin * 60000).toISOString()
-      : null;
-    state.modifiers.push({
-      id: uid(), name: name, multiplier: multiplier, scope: scope,
-      createdAt: now.toISOString(), expiresAt: expiresAt,
-    });
-    var scopeLabel = scope === "all" ? "everyone" : (personById(scope) || {}).name || "someone";
-    logActivity({
-      type: "boostStart",
-      text: name + " started — ×" + multiplier + " for " + scopeLabel +
-        (expiresAt ? " for " + durationMin + " min" : " until ended"),
-    });
-  }
-
-  function endBoost(id) {
-    if (!requireAdmin()) return;
-    var mod = (state.modifiers || []).find(function (m) { return m.id === id; });
-    if (!mod) return;
-    state.modifiers = state.modifiers.filter(function (m) { return m.id !== id; });
-    logActivity({ type: "boostEnd", text: mod.name + " ended early" });
-    renderAll();
-    withSavingUi(saveState());
+    if (openDetailId === personId) openDetailId = null;
+    logActivity(person.name + " was removed from the board");
   }
 
   // ---------- admin UI wiring ----------
@@ -380,15 +312,12 @@
     sessionStorage.setItem("phpAdmin", "1");
     byId("admin-locked").hidden = true;
     byId("admin-unlocked").hidden = false;
-    renderAll(); // boost "End" buttons only show once unlocked
   }
-
   function lockAdmin() {
     isAdmin = false;
     sessionStorage.removeItem("phpAdmin");
     byId("admin-locked").hidden = false;
     byId("admin-unlocked").hidden = true;
-    renderAll();
   }
 
   function wireAdminForms() {
@@ -403,48 +332,36 @@
         byId("admin-login-error").hidden = false;
       }
     });
-
     byId("admin-lock-btn").addEventListener("click", lockAdmin);
 
-    byId("add-points-form").addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      if (!requireAdmin()) return;
-      var personId = byId("add-points-person").value;
-      var amount = parseFloat(byId("add-points-amount").value);
-      var reason = byId("add-points-reason").value.trim();
-      if (!personId || isNaN(amount) || amount < 0) return;
-      addPoints(personId, amount, reason);
-      ev.target.reset();
-      renderAll();
-      withSavingUi(saveState(), ev.target);
+    Array.prototype.forEach.call(document.querySelectorAll(".preset-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        byId("boost-category").value = btn.dataset.cat;
+        byId("boost-amount").value = btn.dataset.amt;
+      });
     });
-    byId("add-points-person").addEventListener("change", updateAddPointsPreview);
-    byId("add-points-amount").addEventListener("input", updateAddPointsPreview);
 
-    byId("remove-points-form").addEventListener("submit", function (ev) {
+    byId("apply-boost-form").addEventListener("submit", function (ev) {
       ev.preventDefault();
       if (!requireAdmin()) return;
-      var personId = byId("remove-points-person").value;
-      var amount = parseFloat(byId("remove-points-amount").value);
-      var reason = byId("remove-points-reason").value.trim();
-      if (!personId || isNaN(amount) || amount < 0) return;
-      removePoints(personId, amount, reason);
-      ev.target.reset();
+      var target = byId("boost-target").value;
+      var category = byId("boost-category").value;
+      var amount = parseFloat(byId("boost-amount").value);
+      var reason = byId("boost-reason").value.trim();
+      if (!target || isNaN(amount)) return;
+      applyBoost(target, category, amount, reason);
+      byId("boost-reason").value = "";
       renderAll();
       withSavingUi(saveState(), ev.target);
     });
 
-    byId("add-boost-form").addEventListener("submit", function (ev) {
+    byId("reset-boosts-form").addEventListener("submit", function (ev) {
       ev.preventDefault();
       if (!requireAdmin()) return;
-      var name = byId("boost-name").value.trim();
-      var multiplier = parseFloat(byId("boost-multiplier").value);
-      var scope = byId("boost-scope").value;
-      var duration = parseInt(byId("boost-duration").value, 10);
-      if (!name || isNaN(multiplier) || multiplier <= 0) return;
-      addBoost(name, multiplier, scope, duration);
-      ev.target.reset();
-      byId("boost-multiplier").value = "1.5";
+      var target = byId("reset-target").value;
+      if (!target) return;
+      if (!confirm("Reset boosts for " + (target === "everyone" ? "everyone" : (personById(target) || {}).name) + "?")) return;
+      resetBoosts(target);
       renderAll();
       withSavingUi(saveState(), ev.target);
     });
@@ -486,15 +403,52 @@
     });
   }
 
+  // ---------- decorative bouncing excomm photos ----------
+
+  function wireFloaters() {
+    var faces = Array.prototype.map.call(document.querySelectorAll(".floater"), function (el, i) {
+      return {
+        el: el,
+        x: Math.random() * Math.max(1, innerWidth - 120), y: Math.random() * Math.max(1, innerHeight - 120),
+        vx: (i % 2 ? -1 : 1) * (1.4 + i * 0.35), vy: (i % 2 ? 1 : -1) * (1.1 + i * 0.3),
+      };
+    });
+    if (!faces.length) return;
+    var colors = ["var(--gold)", "var(--pink)", "var(--cyan)", "var(--violet)", "var(--up)"];
+    var slow = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1;
+    var ci = 0, last = performance.now();
+    function step(t) {
+      var dt = Math.min(3, (t - last) / 16.67) * slow;
+      last = t;
+      faces.forEach(function (f) {
+        var el = f.el, w = innerWidth - el.offsetWidth, h = innerHeight - el.offsetHeight;
+        f.x += f.vx * dt; f.y += f.vy * dt;
+        var hit = false;
+        if (f.x <= 0) { f.x = 0; f.vx = Math.abs(f.vx); hit = true; }
+        else if (f.x >= w) { f.x = w; f.vx = -Math.abs(f.vx); hit = true; }
+        if (f.y <= 0) { f.y = 0; f.vy = Math.abs(f.vy); hit = true; }
+        else if (f.y >= h) { f.y = h; f.vy = -Math.abs(f.vy); hit = true; }
+        if (hit) {
+          ci = (ci + 1) % colors.length;
+          el.style.borderColor = colors[ci];
+          el.classList.remove("corner"); void el.offsetWidth; el.classList.add("corner");
+        }
+        el.style.transform = "translate(" + f.x + "px," + f.y + "px)";
+      });
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
   // ---------- boot ----------
 
   function refresh() {
     return fetchState()
       .then(renderAll)
-      .then(function () { setSyncStatus("Synced at " + fmtClock(new Date())); })
+      .then(function () { byId("sync-status").textContent = "Synced " + fmtClock(new Date()); })
       .catch(function (err) {
         console.error(err);
-        setSyncStatus("Couldn't load the board — retrying…", true);
+        byId("sync-status").textContent = "Couldn't load — retrying…";
       });
   }
 
@@ -508,6 +462,7 @@
 
     byId("main-layout").hidden = false;
     wireAdminForms();
+    wireFloaters();
     if (isAdmin) unlockAdmin();
 
     byId("refresh-btn").addEventListener("click", refresh);
@@ -518,6 +473,5 @@
 
     refresh();
     setInterval(refresh, POLL_MS);
-    setInterval(tickCountdowns, 1000);
   });
 })();

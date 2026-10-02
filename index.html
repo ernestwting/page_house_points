@@ -2,158 +2,166 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Page House Points</title>
 <link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="masthead">
-  <div class="masthead-inner">
-    <div class="title-block">
-      <h1>Page House Points</h1>
-      <p class="motto">&ldquo;Spe labor levis, et spe vinum gravis&rdquo; &mdash; hope makes labor light, and wine heavy</p>
+<!-- Decorative, unlabeled Page House excomm photos (hotlinked from Page
+     House's own official asset host) bouncing DVD-screensaver style —
+     visual flourish only, intentionally not tied to the leaderboard's
+     mechanics or any individual's score. See app.js's floater script. -->
+<img class="floater" alt="" src="https://pagehouse.github.io/media/people/2026_JT.jpg">
+<img class="floater" alt="" src="https://pagehouse.github.io/media/people/2026_Lucas_Smith.jpg">
+<img class="floater" alt="" src="https://pagehouse.github.io/media/people/2026_Katelyn_Sadorf.jpg">
+<img class="floater" alt="" src="https://pagehouse.github.io/media/people/Aiden_Di_Carlo.jpg">
+<img class="floater" alt="" src="https://pagehouse.github.io/media/people/2026_Zoe_Chou.jpg">
+
+<div class="wrap">
+  <header>
+    <h1>Page House Points<small>&ldquo;Spe labor levis, et spe vinum gravis&rdquo; &mdash; make the work be light and the drinks be heavy</small></h1>
+    <div class="clock">
+      <div class="t" id="sync-status">Loading&hellip;</div>
+      <div class="l">shared board &middot; synced automatically</div>
     </div>
-    <button id="theme-toggle" class="btn btn-ghost" type="button">Switch theme</button>
-  </div>
-  <div id="boost-ticker" class="ticker" hidden>
-    <div class="ticker-track" id="ticker-track"></div>
-  </div>
-</header>
+  </header>
 
-<div id="setup-screen" class="setup-screen" hidden>
-  <div class="panel setup-panel">
-    <h2>One-time setup needed</h2>
-    <p>This board's shared data store hasn't been deployed yet &mdash; a
-      small Google Apps Script Web App (<code>apps-script/Code.gs</code>
-      in this repo) needs to be deployed once from a Google account, and
-      its URL pasted into <code>app.js</code>'s <code>STORE_URL</code>.
-      Full step-by-step instructions are in this repo's
-      <code>README.md</code>. Reload this page once that's done.</p>
-  </div>
-</div>
+  <div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker-track"></div></div>
 
-<main id="main-layout" class="layout" hidden>
-  <section class="panel leaderboard-panel">
-    <div class="panel-head">
-      <h2>Leaderboard</h2>
-      <div class="sync-row">
-        <span id="sync-status" class="sync-status">Loading&hellip;</span>
-        <button id="refresh-btn" class="btn btn-small" type="button" title="Refresh now">&#8635;</button>
+  <div class="controls">
+    <span class="sync"><span class="live" id="live-dot"></span><span id="people-count"></span></span>
+    <button id="refresh-btn" class="btn" type="button">Refresh</button>
+    <button id="theme-toggle" class="btn" type="button">Switch theme</button>
+  </div>
+
+  <div id="setup-screen" class="setup-screen" hidden>
+    <div class="card">
+      <h2>One-time setup needed</h2>
+      <p>This board's shared data store hasn't been deployed yet &mdash; a
+        small Google Apps Script Web App (<code>apps-script/Code.gs</code>
+        in this repo) needs to be deployed once from a Google account, and
+        its URL pasted into <code>app.js</code>'s <code>STORE_URL</code>.
+        Full step-by-step instructions are in this repo's
+        <code>README.md</code>. Reload this page once that's done.</p>
+    </div>
+  </div>
+
+  <main id="main-layout" class="grid" hidden>
+    <div class="board">
+      <div id="leaderboard-empty" class="empty-state" hidden>
+        No Pageboys tracked yet. Ask an admin to add some names to get the
+        board started.
       </div>
-    </div>
-
-    <div id="leaderboard-empty" class="empty-state" hidden>
-      No Pageboys tracked yet. Ask an admin to add some names to get the
-      board started.
-    </div>
-
-    <div class="table-scroll">
-      <table id="leaderboard" class="leaderboard" hidden>
-        <thead>
-          <tr>
-            <th class="col-rank">#</th>
-            <th class="col-name">Pageboy</th>
-            <th class="col-points">Points</th>
-          </tr>
-        </thead>
+      <table id="leaderboard" hidden>
+        <thead><tr>
+          <th>#</th><th>Participant</th><th>Tier</th>
+          <th><abbr title="Starting score each Pageboy is assigned, 1&ndash;10">Base</abbr></th>
+          <th><abbr title="Multiplier applied to (Base + Beer Room Boost + 15 for 15)">Shot O'Clock</abbr></th>
+          <th><abbr title="Flat bonus points">Beer Room Boost</abbr></th>
+          <th><abbr title="Flat bonus points">15 for 15</abbr></th>
+          <th><abbr title="Flat penalty, subtracted">Polar Bear</abbr></th>
+          <th><abbr title="Flat adjustment, can be positive or negative">Whose House</abbr></th>
+          <th><abbr title="Flat adjustment, can be positive or negative">Happy Hour</abbr></th>
+          <th>Net power</th>
+        </tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
-  </section>
 
-  <aside class="sidebar">
-    <section class="panel">
-      <h2>Active boosts</h2>
-      <div id="boosts-empty" class="empty-state small">No boosts running right now.</div>
-      <ul id="boosts-list" class="boosts-list"></ul>
-    </section>
-
-    <section class="panel">
-      <h2>Recent activity</h2>
-      <div id="activity-empty" class="empty-state small">Nothing logged yet.</div>
-      <ul id="activity-list" class="activity-list"></ul>
-    </section>
-
-    <section class="panel admin-panel">
-      <h2>Admin</h2>
-
-      <div id="admin-locked">
-        <p class="hint">Enter the admin code to add or remove points and
-          people, and to run boosts.</p>
-        <form id="admin-login-form" class="stack-form">
-          <input id="admin-code" type="password" placeholder="Admin code" autocomplete="off" required>
-          <button type="submit" class="btn btn-primary">Unlock admin</button>
-        </form>
-        <p id="admin-login-error" class="error-text" hidden>That's not the code.</p>
+    <aside>
+      <div class="card">
+        <h2>Scoring codex</h2>
+        <ol class="codex">
+          <li><strong>Net power</strong> = ((Base + Beer Room Boost + 15 for 15) &times; Shot O'Clock) &minus; Polar Bear + Whose House + Happy Hour.</li>
+          <li><strong>Tier</strong> is assigned automatically by rank: top 10% is &Omega; Apex, next 20% &Sigma; Prime, next 30% &Delta; Flux, next 25% &lambda; Drift, bottom 15% &empty; Null.</li>
+          <li>Every category below is admin-adjustable per person &mdash; click a boost preset, pick who it applies to, and it adds (or, with a negative amount, subtracts) from that category.</li>
+          <li>Click any leaderboard row for that Pageboy's full formula breakdown.</li>
+        </ol>
       </div>
 
-      <div id="admin-unlocked" hidden>
-        <div class="admin-row">
-          <span class="admin-badge">Admin unlocked</span>
-          <button id="admin-lock-btn" class="btn btn-small btn-ghost" type="button">Lock</button>
+      <div class="card">
+        <h2>Recent activity</h2>
+        <div id="activity-empty" class="empty-state small">Nothing logged yet.</div>
+        <ul id="activity-list" class="activity-list"></ul>
+      </div>
+
+      <div class="card admin-panel">
+        <h2>Admin</h2>
+
+        <div id="admin-locked">
+          <p class="hint">Enter the admin code to add or remove people and
+            adjust scores.</p>
+          <form id="admin-login-form" class="stack-form">
+            <input id="admin-code" type="password" placeholder="Admin code" autocomplete="off" required>
+            <button type="submit" class="btn btn-primary">Unlock admin</button>
+          </form>
+          <p id="admin-login-error" class="error-text" hidden>That's not the code.</p>
         </div>
 
-        <details class="admin-section" open>
-          <summary>Add points</summary>
-          <form id="add-points-form" class="stack-form">
-            <select id="add-points-person" required></select>
-            <input id="add-points-amount" type="number" step="0.01" min="0" placeholder="Base amount" required>
-            <input id="add-points-reason" type="text" placeholder="Reason (optional)" maxlength="140">
-            <p id="add-points-preview" class="preview-text"></p>
-            <button type="submit" class="btn btn-primary">Add points</button>
-          </form>
-        </details>
+        <div id="admin-unlocked" hidden>
+          <div class="admin-row">
+            <span class="admin-badge">Admin unlocked</span>
+            <button id="admin-lock-btn" class="btn btn-small" type="button">Lock</button>
+          </div>
 
-        <details class="admin-section">
-          <summary>Remove points</summary>
-          <form id="remove-points-form" class="stack-form">
-            <select id="remove-points-person" required></select>
-            <input id="remove-points-amount" type="number" step="0.01" min="0" placeholder="Amount" required>
-            <input id="remove-points-reason" type="text" placeholder="Reason (optional)" maxlength="140">
-            <button type="submit" class="btn btn-danger">Remove points</button>
-          </form>
-        </details>
+          <details class="admin-section" open>
+            <summary>Apply a boost</summary>
+            <form id="apply-boost-form" class="stack-form">
+              <select id="boost-target" required></select>
+              <select id="boost-category" required>
+                <option value="base">Base</option>
+                <option value="shotOClock" selected>Shot O'Clock</option>
+                <option value="beerRoomBoost">Beer Room Boost</option>
+                <option value="fifteenForFifteen">15 for 15</option>
+                <option value="polarBear">Polar Bear</option>
+                <option value="whoseHouse">Whose House</option>
+                <option value="happyHour">Happy Hour</option>
+              </select>
+              <input id="boost-amount" type="number" step="0.05" placeholder="Amount (negative to subtract)" value="0.25" required>
+              <input id="boost-reason" type="text" placeholder="Reason (optional)" maxlength="140">
+              <button type="submit" class="btn btn-primary">Apply</button>
+            </form>
+            <div class="preset-row">
+              <button class="btn btn-small preset-btn" type="button" data-cat="shotOClock" data-amt="0.25">+0.25&times; Shot O'Clock</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="beerRoomBoost" data-amt="2">+2 Beer Room</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="fifteenForFifteen" data-amt="1.5">+1.5 15-for-15</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="polarBear" data-amt="1">+1 Polar Bear</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="whoseHouse" data-amt="3">+3 Whose House</button>
+              <button class="btn btn-small preset-btn" type="button" data-cat="happyHour" data-amt="2">+2 Happy Hour</button>
+            </div>
+            <p class="hint small">Preset buttons fill in the form above &mdash; pick a target first, then click one (or edit the amount by hand) and hit Apply.</p>
+          </details>
 
-        <details class="admin-section">
-          <summary>Add a boost / multiplier</summary>
-          <form id="add-boost-form" class="stack-form">
-            <input id="boost-name" type="text" placeholder="Boost name (e.g. Happy Hour)" maxlength="60" required>
-            <input id="boost-multiplier" type="number" step="0.05" min="0" placeholder="Multiplier (e.g. 1.5)" value="1.5" required>
-            <select id="boost-scope"></select>
-            <select id="boost-duration">
-              <option value="15">15 minutes</option>
-              <option value="30" selected>30 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="120">2 hours</option>
-              <option value="0">Until manually ended</option>
-            </select>
-            <button type="submit" class="btn btn-primary">Start boost</button>
-          </form>
-        </details>
+          <details class="admin-section">
+            <summary>Reset boosts</summary>
+            <p class="hint small">Zeroes Beer Room Boost / 15 for 15 / Polar Bear / Whose House / Happy Hour and sets Shot O'Clock back to 1.0&times; &mdash; for one person, or everyone at once.</p>
+            <form id="reset-boosts-form" class="stack-form">
+              <select id="reset-target" required></select>
+              <button type="submit" class="btn btn-danger">Reset</button>
+            </form>
+          </details>
 
-        <details class="admin-section">
-          <summary>People</summary>
-          <form id="add-person-form" class="stack-form">
-            <input id="person-name" type="text" placeholder="Name to add" maxlength="60" required>
-            <button type="submit" class="btn btn-primary">Add person</button>
-          </form>
-          <form id="remove-person-form" class="stack-form">
-            <select id="remove-person-select" required></select>
-            <button type="submit" class="btn btn-danger">Remove person</button>
-          </form>
-        </details>
+          <details class="admin-section">
+            <summary>People</summary>
+            <form id="add-person-form" class="stack-form">
+              <input id="person-name" type="text" placeholder="Name to add" maxlength="60" required>
+              <button type="submit" class="btn btn-primary">Add person</button>
+            </form>
+            <form id="remove-person-form" class="stack-form">
+              <select id="remove-person-select" required></select>
+              <button type="submit" class="btn btn-danger">Remove person</button>
+            </form>
+          </details>
+        </div>
       </div>
-    </section>
-  </aside>
-</main>
-
-<footer class="site-footer">
-  <p>Page House Points &mdash; built for Pageboys. Data is stored in a
-    public, no-login JSON store; the admin code is a light gate for a fun
-    internal tracker, not real security.</p>
-</footer>
+    </aside>
+  </main>
+</div>
 
 <script src="app.js"></script>
 </body>
