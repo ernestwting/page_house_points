@@ -5,7 +5,7 @@
   // site's entire "backend" — see apps-script/Code.gs and README.md for
   // what it does and how to deploy it. Empty until that one-time, by-hand
   // deployment is done and its /exec URL is pasted in here.
-  var STORE_URL = "";
+  var STORE_URL = "https://script.google.com/macros/s/AKfycbwJwiWBKj2s3ls2HDN6cBJpEzhRaQ3oPi08v5MTSp7d_wOmrofwVOZGHkbQ9XXNaIkTXw/exec";
   var ADMIN_CODE = "whosehouse";
   var POLL_MS = 20000;
 
