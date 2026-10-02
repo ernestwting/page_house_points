@@ -79,6 +79,15 @@ Push to `main`. GitHub Pages (Settings → Pages → Source: `main` branch,
 `/ (root)`) serves it directly — no Actions workflow needed for a plain
 static site like this.
 
+**Whenever `style.css` or `app.js` change, bump the `?v=N` query string
+on their `<link>`/`<script>` tags in `index.html`.** Browsers cache these
+files aggressively by URL; without a version bump, a returning visitor
+can keep seeing the *old* file layered under the *new* `index.html` (odd
+partial-looking styling, or old behavior) until something else happens
+to clear their cache. A hard refresh (Cmd/Ctrl+Shift+R) fixes it for one
+visitor on one visit; the version bump is what fixes it for everyone,
+permanently, the moment they reload.
+
 ## Local preview
 
 Any static file server works, e.g.:
