@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page House Points</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="title-block">
+      <h1>Page House Points</h1>
+      <p class="motto">&ldquo;Spe labor levis, et spe vinum gravis&rdquo; &mdash; hope makes labor light, and wine heavy</p>
+    </div>
+    <button id="theme-toggle" class="btn btn-ghost" type="button">Switch theme</button>
+  </div>
+  <div id="boost-ticker" class="ticker" hidden>
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+</header>
+
+<div id="setup-screen" class="setup-screen" hidden>
+  <div class="panel setup-panel">
+    <h2>One-time setup</h2>
+    <p>This board's shared data store hasn't been created yet. Click
+      below once &mdash; it only needs to happen a single time, ever, from
+      any real browser.</p>
+    <button id="setup-btn" class="btn btn-primary" type="button">Initialize the board</button>
+    <div id="setup-result" class="setup-result" hidden></div>
+  </div>
+</div>
+
+<main id="main-layout" class="layout" hidden>
+  <section class="panel leaderboard-panel">
+    <div class="panel-head">
+      <h2>Leaderboard</h2>
+      <div class="sync-row">
+        <span id="sync-status" class="sync-status">Loading&hellip;</span>
+        <button id="refresh-btn" class="btn btn-small" type="button" title="Refresh now">&#8635;</button>
+      </div>
+    </div>
+
+    <div id="leaderboard-empty" class="empty-state" hidden>
+      No Pageboys tracked yet. Ask an admin to add some names to get the
+      board started.
+    </div>
+
+    <div class="table-scroll">
+      <table id="leaderboard" class="leaderboard" hidden>
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-name">Pageboy</th>
+            <th class="col-points">Points</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <section class="panel">
+      <h2>Active boosts</h2>
+      <div id="boosts-empty" class="empty-state small">No boosts running right now.</div>
+      <ul id="boosts-list" class="boosts-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Recent activity</h2>
+      <div id="activity-empty" class="empty-state small">Nothing logged yet.</div>
+      <ul id="activity-list" class="activity-list"></ul>
+    </section>
+
+    <section class="panel admin-panel">
+      <h2>Admin</h2>
+
+      <div id="admin-locked">
+        <p class="hint">Enter the admin code to add or remove points and
+          people, and to run boosts.</p>
+        <form id="admin-login-form" class="stack-form">
+          <input id="admin-code" type="password" placeholder="Admin code" autocomplete="off" required>
+          <button type="submit" class="btn btn-primary">Unlock admin</button>
+        </form>
+        <p id="admin-login-error" class="error-text" hidden>That's not the code.</p>
+      </div>
+
+      <div id="admin-unlocked" hidden>
+        <div class="admin-row">
+          <span class="admin-badge">Admin unlocked</span>
+          <button id="admin-lock-btn" class="btn btn-small btn-ghost" type="button">Lock</button>
+        </div>
+
+        <details class="admin-section" open>
+          <summary>Add points</summary>
+          <form id="add-points-form" class="stack-form">
+            <select id="add-points-person" required></select>
+            <input id="add-points-amount" type="number" step="0.01" min="0" placeholder="Base amount" required>
+            <input id="add-points-reason" type="text" placeholder="Reason (optional)" maxlength="140">
+            <p id="add-points-preview" class="preview-text"></p>
+            <button type="submit" class="btn btn-primary">Add points</button>
+          </form>
+        </details>
+
+        <details class="admin-section">
+          <summary>Remove points</summary>
+          <form id="remove-points-form" class="stack-form">
+            <select id="remove-points-person" required></select>
+            <input id="remove-points-amount" type="number" step="0.01" min="0" placeholder="Amount" required>
+            <input id="remove-points-reason" type="text" placeholder="Reason (optional)" maxlength="140">
+            <button type="submit" class="btn btn-danger">Remove points</button>
+          </form>
+        </details>
+
+        <details class="admin-section">
+          <summary>Add a boost / multiplier</summary>
+          <form id="add-boost-form" class="stack-form">
+            <input id="boost-name" type="text" placeholder="Boost name (e.g. Happy Hour)" maxlength="60" required>
+            <input id="boost-multiplier" type="number" step="0.05" min="0" placeholder="Multiplier (e.g. 1.5)" value="1.5" required>
+            <select id="boost-scope"></select>
+            <select id="boost-duration">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+              <option value="0">Until manually ended</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Start boost</button>
+          </form>
+        </details>
+
+        <details class="admin-section">
+          <summary>People</summary>
+          <form id="add-person-form" class="stack-form">
+            <input id="person-name" type="text" placeholder="Name to add" maxlength="60" required>
+            <button type="submit" class="btn btn-primary">Add person</button>
+          </form>
+          <form id="remove-person-form" class="stack-form">
+            <select id="remove-person-select" required></select>
+            <button type="submit" class="btn btn-danger">Remove person</button>
+          </form>
+        </details>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<footer class="site-footer">
+  <p>Page House Points &mdash; built for Pageboys. Data is stored in a
+    public, no-login JSON store; the admin code is a light gate for a fun
+    internal tracker, not real security.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
