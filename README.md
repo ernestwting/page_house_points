@@ -22,10 +22,10 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   store's URL and edit it directly, bypassing the code entirely. Don't
   put anything in here you wouldn't want a motivated Pageboy to mess
   with.
-- **Each Pageboy has seven scoring categories**, not just one points
-  total: Base, Shot O'Clock (a multiplier), Beer Room Boost, 15 for 15,
-  Polar Bear, Whose House, and Happy Hour. Net power is:
-  `((Base + Beer Room Boost + 15 for 15) × Shot O'Clock) + Polar Bear +
+- **Each Pageboy has seven scoring categories feeding into one computed
+  total ("Net power")**: Points, Shot O'Clock (a multiplier), Beer Room
+  Boost, 15 for 15, Polar Bear, Whose House, and Happy Hour. Net power is:
+  `((Points + Beer Room Boost + 15 for 15) × Shot O'Clock) + Polar Bear +
   Whose House + Happy Hour`. Polar Bear/Whose House/Happy Hour are signed
   (can be positive or negative) like a scoreboard swing — Polar Bear is
   meant as a penalty, so its preset button applies a *negative* amount by
@@ -39,7 +39,7 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   chosen amount to one category for one Pageboy or everyone at once —
   preset buttons fill in a sensible amount for each category, or an admin
   can type a custom one. **"Reset boosts"** zeroes every category except
-  Base and Shot O'Clock's multiplier (back to 1.0×) for one person or
+  Points and Shot O'Clock's multiplier (back to 1.0×) for one person or
   everyone — the manual equivalent of an event like Happy Hour ending.
 - **Frosh Role** — an optional free-text field set when a person is
   added (shown as its own column, next to Name). Purely descriptive;

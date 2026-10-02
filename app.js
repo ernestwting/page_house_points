@@ -9,7 +9,7 @@
   var POLL_MS = 20000;
 
   var CATEGORY_LABELS = {
-    base: "Base", shotOClock: "Shot O'Clock", beerRoomBoost: "Beer Room Boost",
+    points: "Points", shotOClock: "Shot O'Clock", beerRoomBoost: "Beer Room Boost",
     fifteenForFifteen: "15 for 15", polarBear: "Polar Bear", whoseHouse: "Whose House", happyHour: "Happy Hour",
   };
   var RESETTABLE = ["beerRoomBoost", "fifteenForFifteen", "polarBear", "whoseHouse", "happyHour"];
@@ -52,7 +52,7 @@
     // Bear" boost (which correctly added 1 to the stored value) always
     // made net power go *down*, which reads as exactly backwards from
     // the button that caused it.
-    return ((p.base + p.beerRoomBoost + p.fifteenForFifteen) * p.shotOClock) + p.polarBear + p.whoseHouse + p.happyHour;
+    return ((p.points + p.beerRoomBoost + p.fifteenForFifteen) * p.shotOClock) + p.polarBear + p.whoseHouse + p.happyHour;
   }
 
   function tierFor(fraction) {
@@ -172,7 +172,7 @@
         '<td class="name">' + escapeHtml(p.name) + "</td>" +
         '<td class="role">' + escapeHtml(p.role || "") + "</td>" +
         '<td><span class="tier t-' + p.tierSym + '">' + p.tierText + "</span></td>" +
-        "<td>" + fmt(p.base) + "</td>" +
+        "<td>" + fmt(p.points) + "</td>" +
         "<td>×" + fmt(p.shotOClock) + "</td>" +
         '<td class="' + (p.beerRoomBoost >= 0 ? "pos" : "neg") + '">' + signed(p.beerRoomBoost) + "</td>" +
         '<td class="' + (p.fifteenForFifteen >= 0 ? "pos" : "neg") + '">' + signed(p.fifteenForFifteen) + "</td>" +
@@ -188,10 +188,10 @@
         '<div><b>Rank</b>#' + p.rank + " of " + people.length + "</div>" +
         '<div><b>Role</b>' + escapeHtml(p.role || "—") + "</div>" +
         '<div><b>Tier</b>' + p.tierText + "</div>" +
-        '<div><b>Base</b>' + fmt(p.base) + "</div>" +
+        '<div><b>Points</b>' + fmt(p.points) + "</div>" +
         '<div><b>Shot O\'Clock</b>×' + fmt(p.shotOClock) + "</div>" +
         "</div>" +
-        '<div class="formula">((' + fmt(p.base) + " + " + fmt(p.beerRoomBoost) + " + " + fmt(p.fifteenForFifteen) +
+        '<div class="formula">((' + fmt(p.points) + " + " + fmt(p.beerRoomBoost) + " + " + fmt(p.fifteenForFifteen) +
         ") × " + fmt(p.shotOClock) + ") " +
         (p.polarBear >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.polarBear)) + " " +
         (p.whoseHouse >= 0 ? "+" : "−") + " " + fmt(Math.abs(p.whoseHouse)) + " " +
@@ -276,7 +276,7 @@
   function newPerson(name, role) {
     return {
       id: uid(), name: name, role: role || "",
-      base: 5, shotOClock: 1, beerRoomBoost: 0, fifteenForFifteen: 0,
+      points: 5, shotOClock: 1, beerRoomBoost: 0, fifteenForFifteen: 0,
       polarBear: 0, whoseHouse: 0, happyHour: 0,
     };
   }
