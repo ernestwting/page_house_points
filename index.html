@@ -24,12 +24,13 @@
 
 <div id="setup-screen" class="setup-screen" hidden>
   <div class="panel setup-panel">
-    <h2>One-time setup</h2>
-    <p>This board's shared data store hasn't been created yet. Click
-      below once &mdash; it only needs to happen a single time, ever, from
-      any real browser.</p>
-    <button id="setup-btn" class="btn btn-primary" type="button">Initialize the board</button>
-    <div id="setup-result" class="setup-result" hidden></div>
+    <h2>One-time setup needed</h2>
+    <p>This board's shared data store hasn't been deployed yet &mdash; a
+      small Google Apps Script Web App (<code>apps-script/Code.gs</code>
+      in this repo) needs to be deployed once from a Google account, and
+      its URL pasted into <code>app.js</code>'s <code>STORE_URL</code>.
+      Full step-by-step instructions are in this repo's
+      <code>README.md</code>. Reload this page once that's done.</p>
   </div>
 </div>
 

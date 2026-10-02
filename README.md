@@ -6,11 +6,15 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
 ## How it works
 
 - **No build step.** Just `index.html` + `style.css` + `app.js`.
-- **Shared data** lives in a public, no-login JSON store
-  ([jsonblob.com](https://jsonblob.com)) — GitHub Pages can't run a
+- **Shared data** lives in a Google Sheet, fronted by a small Google Apps
+  Script Web App (`apps-script/Code.gs`) — GitHub Pages can't run a
   server, so this is the "backend." The page polls it every 20s and also
   refetches on focus, so points added by one admin show up for everyone
-  else without a manual reload.
+  else without a manual reload. (Two no-signup public JSON stores were
+  tried first and both turned out unreliable in practice — one blocked
+  writes outright, the other had a broken CORS setup — hence Apps Script
+  instead, which is free, needs no billing, and is backed by Google's own
+  infrastructure.)
 - **Admin access** is gated by a single shared passcode (`whosehouse`,
   set in `app.js`'s `ADMIN_CODE`), entered once per browser tab
   (`sessionStorage`). This is a light gate for a fun internal tracker,
@@ -23,13 +27,42 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   not retroactively. An admin sets a name, a multiplier, who it applies to
   (everyone or one person), and a duration (or "until manually ended").
 
-## One-time setup (already done once for this deployment)
+## One-time backend setup
 
-`app.js`'s `BLOB_ID` constant must point at a real jsonblob.com blob
-before the site will load. If it's ever empty, reloading the page shows
-an "Initialize the board" button — click it once, from any real browser,
-and it'll show you the exact line to paste into `app.js`. Commit that and
-redeploy; nobody needs to do this again after that.
+`app.js`'s `STORE_URL` constant must point at a deployed Apps Script Web
+App before the site will load (reloading with it empty shows an
+instruction screen instead of the board). This only needs doing once,
+ever, by one person with a Google account — nobody else needs to touch
+it again after that:
+
+1. Go to [sheets.google.com](https://sheets.google.com) and create a new
+   blank spreadsheet (name doesn't matter — e.g. "Page House Points
+   Data").
+2. **Extensions → Apps Script.** This opens an editor bound to that
+   sheet.
+3. Delete the placeholder `myFunction() {...}` code and paste in the
+   entire contents of this repo's `apps-script/Code.gs`.
+4. Save (the disk icon, or Ctrl/Cmd+S).
+5. **Deploy → New deployment.** Click the gear icon next to "Select
+   type" and choose **Web app**.
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+6. Click **Deploy**. It'll ask you to authorize the script — click
+   **Authorize access**, pick your Google account, then (since this is
+   your own unpublished script) click **Advanced** → **Go to \[project
+   name\] (unsafe)** → **Allow**. This warning is expected for any script
+   you haven't submitted for Google's verification; it's only ever
+   talking to your own spreadsheet.
+7. Copy the **Web app URL** it shows you (looks like
+   `https://script.google.com/macros/s/AKfycb.../exec`).
+8. Paste that as the value of `STORE_URL` near the top of `app.js`,
+   commit, and push. The board goes live on the next Pages deploy.
+
+If the script or sheet ever needs editing later, the same Apps Script
+editor is reachable from **Extensions → Apps Script** on that sheet —
+redeploy (**Deploy → Manage deployments → edit → New version**) for code
+changes to actually take effect, since Apps Script Web Apps serve
+whichever version was last deployed, not always the latest saved code.
 
 ## Deploying
 

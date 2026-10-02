@@ -1,13 +1,11 @@
 (function () {
   "use strict";
 
-  // Public, no-login JSON store (jsonblob.com — see README). Reading/
-  // writing this URL is all the "backend" this static site has, by design.
-  // BLOB_ID is empty until the one-time setup step (see setupScreen below)
-  // creates the shared blob and this constant gets hardcoded with its id.
-  var STORE_BASE = "https://jsonblob.com/api/jsonBlob/";
-  var BLOB_ID = "";
-  var STORE_URL = BLOB_ID ? STORE_BASE + BLOB_ID : null;
+  // A Google Apps Script Web App (bound to a Google Sheet) is this static
+  // site's entire "backend" — see apps-script/Code.gs and README.md for
+  // what it does and how to deploy it. Empty until that one-time, by-hand
+  // deployment is done and its /exec URL is pasted in here.
+  var STORE_URL = "";
   var ADMIN_CODE = "whosehouse";
   var POLL_MS = 20000;
 
@@ -97,13 +95,22 @@
 
   function saveState() {
     pruneExpiredModifiers();
+    // Content-Type is deliberately left as the fetch default (text/plain)
+    // rather than application/json: that keeps this a CORS-simple request
+    // (no preflight), since Apps Script Web Apps can't answer a real
+    // OPTIONS preflight. Code.gs's doPost() parses the body as JSON
+    // regardless of the declared content type.
     return fetch(STORE_URL, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      method: "POST",
       body: JSON.stringify(state),
-    }).then(function (res) {
-      if (!res.ok) throw new Error("PUT failed: " + res.status);
-    });
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("POST failed: " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.error) throw new Error(data.error);
+      });
   }
 
   function withSavingUi(promise, formEl) {
@@ -491,53 +498,11 @@
       });
   }
 
-  // One-time setup: creates the shared jsonblob.com blob this whole site
-  // reads/writes, then shows the id to hardcode into BLOB_ID above. Only
-  // ever needs to run once, from any real browser — the scripted request
-  // this was developed against got Cloudflare-bot-challenged, which a real
-  // browser executing this same click does not hit.
-  function wireSetupScreen() {
-    byId("setup-btn").addEventListener("click", function () {
-      var btn = byId("setup-btn");
-      var result = byId("setup-result");
-      btn.disabled = true;
-      btn.textContent = "Creating…";
-      fetch(STORE_BASE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ people: [], modifiers: [], activityLog: [], schemaVersion: 1 }),
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error("Create failed: " + res.status);
-          var id = res.headers.get("X-jsonblob-id");
-          if (!id) {
-            var loc = res.headers.get("Location") || "";
-            id = loc.split("/").filter(Boolean).pop();
-          }
-          if (!id) throw new Error("No blob id returned");
-          result.hidden = false;
-          result.innerHTML =
-            "Board created. Send this line to whoever's deploying the site " +
-            "— it goes near the top of <code>app.js</code>, replacing " +
-            "the empty <code>BLOB_ID</code>:<code>var BLOB_ID = \"" + id + "\";</code>";
-          btn.textContent = "Done";
-        })
-        .catch(function (err) {
-          console.error(err);
-          result.hidden = false;
-          result.textContent = "Couldn't create the board (" + err.message + "). Try again in a moment.";
-          btn.disabled = false;
-          btn.textContent = "Initialize the board";
-        });
-    });
-  }
-
   document.addEventListener("DOMContentLoaded", function () {
     wireTheme();
 
     if (!STORE_URL) {
       byId("setup-screen").hidden = false;
-      wireSetupScreen();
       return;
     }
 
