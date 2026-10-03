@@ -16,12 +16,19 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   instead, which is free, needs no billing, and is backed by Google's own
   infrastructure.)
 - **Admin access** is gated by a single shared passcode (`whosehouse`,
-  set in `app.js`'s `ADMIN_CODE`), entered once per browser tab
-  (`sessionStorage`). This is a light gate for a fun internal tracker,
-  **not real security** — anyone who opens dev tools can see the data
-  store's URL and edit it directly, bypassing the code entirely. Don't
-  put anything in here you wouldn't want a motivated Pageboy to mess
-  with.
+  set in both `app.js`'s `ADMIN_CODE` *and* `Code.gs`'s `ADMIN_CODE` —
+  **the two must match**). Entered once per browser tab
+  (`sessionStorage`) on the frontend; every write also carries it to
+  `Code.gs`, which rejects anything that doesn't match *before* touching
+  the sheet. This closes the hole that let someone replace every real
+  person with spam data in testing — the backend used to accept any POST
+  from anyone who found the URL, with no check at all. It's still **not
+  real security** against someone who actually reads `app.js`'s source
+  (the code is necessarily plain text there, for the browser to send it)
+  — don't put anything in here you wouldn't want a sufficiently motivated
+  Pageboy to mess with. `Code.gs` also rejects obviously-spammed shapes
+  (hundreds of people, individual field values past ±100,000) as a second
+  layer, independent of the code check.
 - **Each Pageboy has seven scoring categories feeding into one computed
   total ("Net power")**: Points, Shot O'Clock (a multiplier), Beer Room
   Boost, 15 for 15, Polar Bear, Whose House, and Happy Hour. Net power is:

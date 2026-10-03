@@ -3,8 +3,24 @@
  *
  * Deployed as a Web App (Execute as: Me, Who has access: Anyone), this
  * turns one cell of the bound spreadsheet into the whole site's shared
- * data store: GET returns it, POST overwrites it. See README.md in the
+ * data store: GET returns it (unauthenticated — the whole point of a
+ * leaderboard is being visible to everyone), POST overwrites it *after*
+ * checking an admin code (see ADMIN_CODE below). See README.md in the
  * repo root for the exact deploy steps.
+ *
+ * SECURITY NOTE: ADMIN_CODE here must match app.js's ADMIN_CODE exactly
+ * — the UI sends it with every write. This blocks a write that carries
+ * no code or the wrong one (confirmed necessary: without this check,
+ * literally anyone who found this URL — via the browser's own Network
+ * tab, no special access needed — could POST arbitrary data with zero
+ * knowledge of the admin code at all, which is exactly what happened
+ * once in testing, replacing every real person with 13 copies of a fake
+ * name and a billion-times multiplier). It does NOT make this
+ * cryptographically secure: ADMIN_CODE is plain text in app.js too,
+ * which every visitor's browser downloads, so anyone who reads that
+ * file still has the same write access a real admin does. What this
+ * closes is the *zero-knowledge* hole, not a determined, technical
+ * person's.
  *
  * Deliberately avoids any CORS preflight: GET is always a CORS-simple
  * request, and the site's own fetch() POST uses a text/plain body (also
@@ -18,6 +34,7 @@
  * whether anyone has the site open in a browser.
  */
 
+var ADMIN_CODE = "whosehouse"; // must match app.js's ADMIN_CODE exactly
 var SHEET_NAME = "data";
 var CELL = "A1";
 var DEFAULT_STATE = JSON.stringify({
@@ -25,6 +42,13 @@ var DEFAULT_STATE = JSON.stringify({
   activityLog: [],
   schemaVersion: 2,
 });
+
+// Loose sanity bounds — generous enough that a real admin's biggest
+// intentional boost still fits, but reject anything shaped like a script
+// spamming the endpoint (absurd magnitudes, hundreds of fake people).
+var MAX_PEOPLE = 200;
+var MAX_FIELD_MAGNITUDE = 100000;
+var MAX_NAME_LENGTH = 80;
 
 function getDataSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -54,6 +78,34 @@ function writeState_(state) {
   getDataSheet_().getRange(CELL).setValue(JSON.stringify(state));
 }
 
+/**
+ * Rejects a state whose shape or magnitudes look machine-spammed rather
+ * than admin-entered — returns an error string, or null if the state
+ * looks reasonable. Not a strict schema check (new fields are allowed
+ * through unchanged); just a blast-radius limiter.
+ */
+function validateState_(state) {
+  if (!state || typeof state !== "object") return "State must be an object";
+  if (!Array.isArray(state.people)) return "people must be an array";
+  if (state.people.length > MAX_PEOPLE) return "Too many people (max " + MAX_PEOPLE + ")";
+
+  var numericFields = ["points", "shotOClock", "beerRoomBoost", "fifteenForFifteen", "polarBear", "whoseHouse", "happyHour"];
+  for (var i = 0; i < state.people.length; i++) {
+    var p = state.people[i];
+    if (!p || typeof p !== "object") return "Each person must be an object";
+    if (typeof p.name !== "string" || !p.name.trim() || p.name.length > MAX_NAME_LENGTH) {
+      return "Each person needs a reasonable name";
+    }
+    for (var f = 0; f < numericFields.length; f++) {
+      var v = p[numericFields[f]];
+      if (v != null && (typeof v !== "number" || !isFinite(v) || Math.abs(v) > MAX_FIELD_MAGNITUDE)) {
+        return "Field " + numericFields[f] + " out of range for " + p.name;
+      }
+    }
+  }
+  return null;
+}
+
 function doGet(e) {
   var sheet = getDataSheet_();
   var value = sheet.getRange(CELL).getValue();
@@ -65,12 +117,25 @@ function doPost(e) {
   if (!body) {
     return jsonOutput_(JSON.stringify({ error: "No body received" }));
   }
+
+  var envelope;
   try {
-    JSON.parse(body); // validate before writing — never store malformed JSON
+    envelope = JSON.parse(body);
   } catch (err) {
     return jsonOutput_(JSON.stringify({ error: "Invalid JSON: " + err.message }));
   }
-  getDataSheet_().getRange(CELL).setValue(body);
+
+  if (!envelope || envelope.auth !== ADMIN_CODE) {
+    return jsonOutput_(JSON.stringify({ error: "Unauthorized" }));
+  }
+
+  var state = envelope.state;
+  var validationError = validateState_(state);
+  if (validationError) {
+    return jsonOutput_(JSON.stringify({ error: validationError }));
+  }
+
+  writeState_(state);
   return jsonOutput_(JSON.stringify({ status: "ok" }));
 }
 

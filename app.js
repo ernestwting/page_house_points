@@ -106,7 +106,13 @@
     // (no preflight), since Apps Script Web Apps can't answer a real
     // OPTIONS preflight. Code.gs's doPost() parses the body as JSON
     // regardless of the declared content type.
-    return fetch(STORE_URL, { method: "POST", body: JSON.stringify(state) })
+    //
+    // Wrapped with { auth, state } rather than posting state directly:
+    // Code.gs now rejects any write whose auth doesn't match ADMIN_CODE
+    // — confirmed necessary after a write with zero credentials replaced
+    // every real person with spam data. Every write handler in this file
+    // already runs behind requireAdmin(), so isAdmin is always true here.
+    return fetch(STORE_URL, { method: "POST", body: JSON.stringify({ auth: ADMIN_CODE, state: state }) })
       .then(function (res) {
         if (!res.ok) throw new Error("POST failed: " + res.status);
         return res.json();
