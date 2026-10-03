@@ -5,7 +5,6 @@
   // site's entire "backend" — see apps-script/Code.gs and README.md for
   // what it does and how to deploy it.
   var STORE_URL = "https://script.google.com/macros/s/AKfycbwJwiWBKj2s3ls2HDN6cBJpEzhRaQ3oPi08v5MTSp7d_wOmrofwVOZGHkbQ9XXNaIkTXw/exec";
-  var ADMIN_CODE = "whosehouse";
   var POLL_MS = 20000;
 
   var CATEGORY_LABELS = {
@@ -17,7 +16,15 @@
   var state = { people: [], activityLog: [], schemaVersion: 2 };
   var previousRank = {}; // personId -> rank, client-side only, for the ▲▼ indicator
   var openDetailId = null;
-  var isAdmin = sessionStorage.getItem("phpAdmin") === "1";
+  // The admin code itself is never hardcoded anywhere in this file —
+  // only whatever an admin actually types in the login form, kept here
+  // (and in sessionStorage, so a reload in the same tab doesn't need
+  // re-entry) for as long as this tab considers itself unlocked. The
+  // real check happens server-side in Code.gs against a salted hash, on
+  // every single write — this variable only gates which UI is shown; a
+  // wrong or stale value here gets rejected there regardless.
+  var adminCode = sessionStorage.getItem("phpAdminCode") || null;
+  var isAdmin = !!adminCode;
 
   // ---------- small utilities ----------
 
@@ -40,6 +47,17 @@
     var div = document.createElement("div");
     div.textContent = s == null ? "" : String(s);
     return div.innerHTML;
+  }
+  // escapeHtml() alone is only safe inside HTML *text content* — the
+  // textContent/innerHTML round-trip it uses encodes & < > but not
+  // quote characters, since a bare quote is harmless in text content.
+  // It is NOT safe inside an attribute value (e.g. value="..."): a
+  // string like `x" onmouseover="...` would pass through escapeHtml()
+  // unchanged and break out of the attribute via the unescaped quote,
+  // without needing < or > at all. escapeAttr() additionally encodes
+  // both quote characters for exactly that context.
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   function byId(id) { return document.getElementById(id); }
 
@@ -108,17 +126,27 @@
     // regardless of the declared content type.
     //
     // Wrapped with { auth, state } rather than posting state directly:
-    // Code.gs now rejects any write whose auth doesn't match ADMIN_CODE
-    // — confirmed necessary after a write with zero credentials replaced
-    // every real person with spam data. Every write handler in this file
-    // already runs behind requireAdmin(), so isAdmin is always true here.
-    return fetch(STORE_URL, { method: "POST", body: JSON.stringify({ auth: ADMIN_CODE, state: state }) })
+    // Code.gs hashes `auth` and compares it to a salted hash — the real
+    // code lives only there, never in this file — and independently
+    // re-validates every field of `state` against bounds and against
+    // what was previously stored (see Code.gs's validateState_) before
+    // writing anything. Every write handler in this file already runs
+    // behind requireAdmin(), so adminCode is always set here, but
+    // Code.gs is the actual authority, not this tab's local flag.
+    return fetch(STORE_URL, { method: "POST", body: JSON.stringify({ auth: adminCode, state: state }) })
       .then(function (res) {
         if (!res.ok) throw new Error("POST failed: " + res.status);
         return res.json();
       })
       .then(function (data) {
-        if (data && data.error) throw new Error(data.error);
+        if (data && data.error) {
+          if (data.error === "Unauthorized") {
+            lockAdmin();
+            byId("admin-login-error").hidden = false;
+            alert("That admin code is no longer valid — sign in again to keep making changes.");
+          }
+          throw new Error(data.error);
+        }
       });
   }
 
@@ -255,7 +283,7 @@
   function renderAdminSelects() {
     var people = (state.people || []).slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
     var personOptions = people.map(function (p) {
-      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name) + "</option>";
+      return '<option value="' + escapeAttr(p.id) + '">' + escapeHtml(p.name) + "</option>";
     }).join("");
 
     byId("boost-target").innerHTML = (people.length ? '<option value="everyone">Everyone</option>' : "") +
@@ -324,13 +352,13 @@
 
   function unlockAdmin() {
     isAdmin = true;
-    sessionStorage.setItem("phpAdmin", "1");
     byId("admin-locked").hidden = true;
     byId("admin-unlocked").hidden = false;
   }
   function lockAdmin() {
     isAdmin = false;
-    sessionStorage.removeItem("phpAdmin");
+    adminCode = null;
+    sessionStorage.removeItem("phpAdminCode");
     byId("admin-locked").hidden = false;
     byId("admin-unlocked").hidden = true;
   }
@@ -338,14 +366,39 @@
   function wireAdminForms() {
     byId("admin-login-form").addEventListener("submit", function (ev) {
       ev.preventDefault();
-      var code = byId("admin-code").value.trim().toLowerCase();
-      if (code === ADMIN_CODE) {
-        byId("admin-login-error").hidden = true;
-        byId("admin-code").value = "";
-        unlockAdmin();
-      } else {
-        byId("admin-login-error").hidden = false;
-      }
+      var code = byId("admin-code").value;
+      var btn = ev.target.querySelector("button[type=submit]");
+      byId("admin-login-error").hidden = true;
+      if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+      // The real check only ever happens server-side, against a salted
+      // hash Code.gs holds — this file never contains the code to
+      // compare against locally. verifyOnly asks Code.gs to check the
+      // code without writing anything, just so a wrong code can be
+      // reported back immediately instead of silently failing on the
+      // next real action.
+      fetch(STORE_URL, { method: "POST", body: JSON.stringify({ auth: code, verifyOnly: true }) })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.status === "ok") {
+            adminCode = code;
+            sessionStorage.setItem("phpAdminCode", adminCode);
+            byId("admin-code").value = "";
+            unlockAdmin();
+          } else {
+            byId("admin-login-error").textContent = data && data.error === "Too many failed attempts — locked for a few minutes"
+              ? "Too many wrong attempts — locked for a few minutes."
+              : "That's not the code.";
+            byId("admin-login-error").hidden = false;
+          }
+        })
+        .catch(function (err) {
+          console.error(err);
+          byId("admin-login-error").textContent = "Couldn't reach the server — try again.";
+          byId("admin-login-error").hidden = false;
+        })
+        .finally(function () {
+          if (btn) { btn.disabled = false; btn.textContent = "Unlock admin"; }
+        });
     });
     byId("admin-lock-btn").addEventListener("click", lockAdmin);
 
@@ -486,6 +539,10 @@
     byId("main-layout").hidden = false;
     wireAdminForms();
     wireFloaters();
+    // Optimistic only: a stored adminCode just means this tab passed a
+    // verifyOnly check earlier in the session, not that it's still
+    // valid right now. Code.gs re-checks the hash on every real write
+    // and saveState() calls lockAdmin() if one comes back Unauthorized.
     if (isAdmin) unlockAdmin();
 
     byId("refresh-btn").addEventListener("click", refresh);
