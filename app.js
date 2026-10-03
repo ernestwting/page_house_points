@@ -255,7 +255,7 @@
   function renderAdminSelects() {
     var people = (state.people || []).slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
     var personOptions = people.map(function (p) {
-      return '<option value="' + p.id + '">' + escapeHtml(p.name) + "</option>";
+      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name) + "</option>";
     }).join("");
 
     byId("boost-target").innerHTML = (people.length ? '<option value="everyone">Everyone</option>' : "") +

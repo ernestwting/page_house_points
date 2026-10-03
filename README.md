@@ -29,6 +29,19 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
   Pageboy to mess with. `Code.gs` also rejects obviously-spammed shapes
   (hundreds of people, individual field values past ±100,000) as a second
   layer, independent of the code check.
+- **Every stored field gets escaped before going into HTML, and `Code.gs`
+  independently rejects `<`/`>` in names/roles and forces every `id` into
+  a safe alphanumeric shape** (`sanitizeIds_()`). This is a direct fix
+  for a real stored-XSS attack: one HTML-building line in `app.js`
+  inserted a person's `id` into the admin dropdown without escaping
+  (while the `name` right next to it *was* escaped), and someone with
+  write access used that gap to plant a script in the `id` field that
+  ran in every visitor's browser — rewriting the floater photos'
+  `src` client-side (the actual image files were never touched) and
+  hijacking the "add person" form to always submit a fixed name. Fixed
+  at both layers: the actual escaping bug in `app.js`, and a
+  Code.gs-side guard so a similar miss at any other call site can't be
+  exploited the same way.
 - **Each Pageboy has seven scoring categories feeding into one computed
   total ("Net power")**: Points, Shot O'Clock (a multiplier), Beer Room
   Boost, 15 for 15, Polar Bear, Whose House, and Happy Hour. Net power is:

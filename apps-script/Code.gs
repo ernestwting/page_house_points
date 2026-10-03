@@ -78,11 +78,24 @@ function writeState_(state) {
   getDataSheet_().getRange(CELL).setValue(JSON.stringify(state));
 }
 
+// A name/role is free text, but must never contain anything that could
+// be interpreted as markup — this is checked here independently of
+// whatever the frontend does with it, on the theory that a storage-layer
+// guard should never depend on every future render call site remembering
+// to escape correctly. (That exact assumption failing — one call site in
+// app.js inserted a stored field into an HTML attribute unescaped — is
+// what let a previous write plant a script that ran in every visitor's
+// browser. Fixed there too, but this guard means a similar slip anywhere
+// else can no longer be loaded as a payload in the first place.)
+var UNSAFE_TEXT_PATTERN = /[<>]/;
+var ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+
 /**
- * Rejects a state whose shape or magnitudes look machine-spammed rather
- * than admin-entered — returns an error string, or null if the state
- * looks reasonable. Not a strict schema check (new fields are allowed
- * through unchanged); just a blast-radius limiter.
+ * Rejects a state whose shape, magnitudes, or text content look
+ * machine-spammed or injection-shaped rather than admin-entered —
+ * returns an error string, or null if the state looks reasonable. Not a
+ * strict schema check (new fields are allowed through unchanged); just a
+ * blast-radius limiter.
  */
 function validateState_(state) {
   if (!state || typeof state !== "object") return "State must be an object";
@@ -96,6 +109,11 @@ function validateState_(state) {
     if (typeof p.name !== "string" || !p.name.trim() || p.name.length > MAX_NAME_LENGTH) {
       return "Each person needs a reasonable name";
     }
+    if (UNSAFE_TEXT_PATTERN.test(p.name)) return "Name can't contain < or >";
+    if (p.role != null) {
+      if (typeof p.role !== "string" || p.role.length > MAX_NAME_LENGTH) return "Role is too long";
+      if (UNSAFE_TEXT_PATTERN.test(p.role)) return "Role can't contain < or >";
+    }
     for (var f = 0; f < numericFields.length; f++) {
       var v = p[numericFields[f]];
       if (v != null && (typeof v !== "number" || !isFinite(v) || Math.abs(v) > MAX_FIELD_MAGNITUDE)) {
@@ -104,6 +122,22 @@ function validateState_(state) {
     }
   }
   return null;
+}
+
+/**
+ * Forces every person's id into a known-safe shape (plain
+ * alphanumeric/dash/underscore), replacing anything else with a fresh
+ * one — belt-and-suspenders alongside the UNSAFE_TEXT_PATTERN check
+ * above, specifically for the field a previous attack targeted. ids are
+ * internal identifiers an admin never has a real reason to set to
+ * arbitrary content, so this has no legitimate-use downside.
+ */
+function sanitizeIds_(people) {
+  people.forEach(function (p) {
+    if (typeof p.id !== "string" || !ID_PATTERN.test(p.id)) {
+      p.id = Utilities.getUuid();
+    }
+  });
 }
 
 function doGet(e) {
@@ -134,6 +168,7 @@ function doPost(e) {
   if (validationError) {
     return jsonOutput_(JSON.stringify({ error: validationError }));
   }
+  sanitizeIds_(state.people);
 
   writeState_(state);
   return jsonOutput_(JSON.stringify({ status: "ok" }));
