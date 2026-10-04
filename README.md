@@ -47,12 +47,30 @@ spe vinum gravis"*. Static site, hosted on GitHub Pages.
     just in isolation: at most **one new person per write** (every real
     "Add person" click only ever adds one — more than that in a single
     write is rejected outright, regardless of how valid the code was),
-    at most 3 people sharing a name, tight per-field ranges (e.g. Shot
-    O'Clock capped 0–10, not an arbitrary multiplier), and a cap on how
-    much any one field may swing in a single write. None of this depends
-    on the code staying secret — it holds even if a correct code is
-    compromised, mistyped into the wrong context, or driven by a script
-    instead of a human.
+    at most 3 people sharing a name, and (the real guard against a
+    one-shot absurd value) a cap on how much any single field may swing
+    in one write, regardless of where it already stood. None of this
+    depends on the code staying secret — it holds even if a correct code
+    is compromised, mistyped into the wrong context, or driven by a
+    script instead of a human.
+    - **Shot O'Clock** (the one field that multiplies the whole formula,
+      so a huge value there wrecks every score at once) additionally
+      gets a tight absolute range, 0–10 — nothing ever needs it anywhere
+      near that high in one click.
+    - The other five signed "swing" fields (Beer Room Boost, 15 for 15,
+      Polar Bear, Whose House, Happy Hour) deliberately do **not** get a
+      tight absolute range, only a generous overflow guard. Whose House
+      in particular is incremented by the chaos roll every 5 minutes
+      forever, by design, as an unbounded random walk — a tight absolute
+      bound there doesn't stop an attack, it just means the board
+      permanently locks up the first time ordinary chaos-roll drift
+      crosses it. (This happened in practice during testing: chaos rolls
+      alone pushed Whose House past an earlier ±1000 bound within hours,
+      which then rejected *every* write on the site, including ones that
+      never touched Whose House at all, since every write resubmits the
+      full roster and that check ran against all of it. Fixed by moving
+      the real protection onto the per-write delta cap instead, which
+      holds regardless of how large the accumulated value already is.)
   - `Code.gs` also rejects obviously-spammed shapes (too many total
     people, oversized activity-log entries) as an independent layer, and
     throttles writes globally (20 per rolling 60s) so a stuck client or

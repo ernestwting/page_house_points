@@ -145,7 +145,14 @@
             byId("admin-login-error").hidden = false;
             alert("That admin code is no longer valid — sign in again to keep making changes.");
           }
-          throw new Error(data.error);
+          // Tagged so withSavingUi can show Code.gs's actual reason
+          // (e.g. a specific validation rule that rejected the write)
+          // instead of a generic "didn't respond" message that reads
+          // the same whether the problem was a real network failure or
+          // a deliberate, specific rejection server-side.
+          var err = new Error(data.error);
+          err.isServerError = true;
+          throw err;
         }
       });
   }
@@ -159,7 +166,11 @@
       .catch(function (err) {
         console.error(err);
         byId("sync-status").textContent = "Couldn't save — try again";
-        alert("That didn't save — the shared data store didn't respond. Nothing changed on the board yet; try again.");
+        if (err && err.isServerError) {
+          alert("That didn't save: " + err.message);
+        } else {
+          alert("That didn't save — the shared data store didn't respond. Nothing changed on the board yet; try again.");
+        }
       })
       .finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = prevText; }

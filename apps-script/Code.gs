@@ -85,19 +85,36 @@ var MAX_NEW_PEOPLE_PER_WRITE = 1;
 // more than that, all at once, is the exact shape the spam attack took.
 var MAX_NAME_DUPLICATES = 3;
 
-// Tight, field-specific ranges instead of one generous blanket
-// magnitude — presets move these fields by small amounts (0.25, 2, 1.5,
-// -1, 3, 2), so even a generous manual entry has no legitimate reason
-// to approach these limits, let alone the "absurd multiplier" an
-// injected write actually used.
+// Absolute ranges. points/shotOClock get a tight, realistic range —
+// shotOClock especially, since it multiplies the whole formula, so even
+// a "legitimately" huge value there would wreck every score at once, and
+// nothing ever needs it anywhere near this high in one click.
+//
+// The five signed "swing" categories deliberately do NOT get a tight
+// absolute range: whoseHouse is incremented by chaosRoll() every 5
+// minutes forever, by design, as an unbounded random walk (see
+// chaosRoll()'s own comment — "nothing here tries to balance out over
+// time"), and the others can likewise accumulate indefinitely over a
+// real semester of repeated legitimate boosts. A tight absolute bound on
+// any of these doesn't block an attack — it just means the board
+// permanently locks up the first time organic accumulation crosses it
+// (this happened in practice: chaos rolls alone pushed whoseHouse past
+// a ±1000 bound within hours, which then rejected every write on the
+// site — including ones that never touched whoseHouse at all, since
+// every write resubmits the full roster and this check ran against all
+// of it). These keep only a generous overflow guard; the real one-shot
+// abuse protection for these fields is MAX_FIELD_DELTA_PER_WRITE below,
+// which caps how much a single write can move a field regardless of
+// where it already stood — that holds up whether the previous value
+// was 5 or -2295.
 var FIELD_BOUNDS = {
-  points: { min: 0, max: 100 },
+  points: { min: 0, max: 1000000 },
   shotOClock: { min: 0, max: 10 },
-  beerRoomBoost: { min: -1000, max: 1000 },
-  fifteenForFifteen: { min: -1000, max: 1000 },
-  polarBear: { min: -1000, max: 1000 },
-  whoseHouse: { min: -1000, max: 1000 },
-  happyHour: { min: -1000, max: 1000 },
+  beerRoomBoost: { min: -1000000, max: 1000000 },
+  fifteenForFifteen: { min: -1000000, max: 1000000 },
+  polarBear: { min: -1000000, max: 1000000 },
+  whoseHouse: { min: -1000000, max: 1000000 },
+  happyHour: { min: -1000000, max: 1000000 },
 };
 
 // No single write may swing any one field by more than this, regardless
